@@ -8,4 +8,4 @@ Kept in its own module so stamping it cannot disturb anything else, and so the
 value is importable without pulling in Qt.
 """
 
-__version__ = "1.0.2"
+__version__ = "1.0.8"

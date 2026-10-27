@@ -17,7 +17,7 @@ It lives under ``design/`` and not beside its own outputs, because ``build.py``
 bundles every PNG in ``resources/brand/`` into the executable: the 1 MB painting
 nothing reads at runtime would be a megabyte in everyone's download.
 
-Three things happen to it here, and each one is for a place it has to work in:
+Four outputs cover the places the mark has to work in:
 
 * **the frame comes off.** The artwork is a mark floating in a lot of ground,
   and the ground is not the logo: at 16 pixels in a system tray, half an icon
@@ -27,18 +27,23 @@ Three things happen to it here, and each one is for a place it has to work in:
 * **an alpha-cut variant** is written for the window headers and the page, where
   the mark sits on a surface of its own and square corners would read as a
   screenshot rather than as an icon;
+* **the transparent sidebar mark** is resized from its own edited source,
+  preserving its alpha and leaving the original painting untouched;
 * **the .ico carries every size Windows asks for.** Left to scale one bitmap
-  itself, Windows picks the nearest and does it badly.
+  itself, Windows picks the nearest and does it badly. Its tile uses the same
+  rounded corners as the runtime window/taskbar icon.
 """
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = ROOT / "design" / "brand" / "flashwatch-logo.png"
+SOURCE = ROOT / "design" / "brand" / "flashwatch-hextech.png"
+TRANSPARENT_SOURCE = SOURCE
 OUT = ROOT / "resources" / "brand"
 SITE = ROOT / "site"
 
@@ -90,8 +95,7 @@ def trimmed(image: Image.Image) -> Image.Image:
 def rounded(image: Image.Image, radius_share: float = 0.22) -> Image.Image:
     """The same picture with its corners cut, for use over the interface.
 
-    A square tile is right on a taskbar, where every icon is one. It is wrong in
-    a window header beside text, where the eye reads the tile before the mark.
+    Used by both the runtime icon and the Windows executable's ICO.
     """
     mask = Image.new("L", image.size, 0)
     ImageDraw.Draw(mask).rounded_rectangle(
@@ -103,21 +107,33 @@ def rounded(image: Image.Image, radius_share: float = 0.22) -> Image.Image:
 
 
 def main() -> int:
+    cli = argparse.ArgumentParser(description=__doc__)
+    cli.add_argument("--app-only", action="store_true",
+                     help="Regenerate application assets without changing site artwork")
+    args = cli.parse_args()
     if not SOURCE.exists():
         raise SystemExit(f"no artwork at {SOURCE.relative_to(ROOT)}")
     print(f"source: {SOURCE.name} ({SOURCE.stat().st_size // 1024} KB)")
-    art = trimmed(Image.open(SOURCE).convert("RGBA"))
+    art = Image.open(SOURCE).convert("RGBA")
     print(f"cropped to the mark: {art.width}x{art.height}")
 
     OUT.mkdir(parents=True, exist_ok=True)
     square = art.resize((256, 256), Image.LANCZOS)
     square.save(OUT / "flashwatch-256.png", optimize=True)
-    rounded(art).resize((256, 256), Image.LANCZOS).save(
-        OUT / "flashwatch-round-256.png", optimize=True)
+    tile = art.resize((256, 256), Image.LANCZOS)
+    tile.save(OUT / "flashwatch-round-256.png", optimize=True)
     art.resize((512, 512), Image.LANCZOS).save(OUT / "flashwatch-512.png",
                                                optimize=True)
-    square.save(OUT / "flashwatch.ico",
-                sizes=[(size, size) for size in ICO_SIZES])
+    tile.save(OUT / "flashwatch.ico", sizes=[(size, size) for size in ICO_SIZES])
+
+    # Edited transparent artwork is a separate source: the original icon tile
+    # and its colors are preserved. Only resize here; retain the supplied alpha.
+    with Image.open(TRANSPARENT_SOURCE) as transparent:
+        transparent.convert("RGBA").resize((512, 512), Image.LANCZOS).save(
+            OUT / "flashwatch-transparent-512.png", optimize=True)
+
+    if args.app_only:
+        return 0
 
     # The page is deployed from site/, so its copies live there rather than
     # being reached for across the repository. Two sizes, because the big one is

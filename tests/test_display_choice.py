@@ -277,8 +277,10 @@ for layout in LAYOUTS:
 
 check("the track starts at the top of the screen", tops[LAYOUT_BAR].y() < 80,
       f"y={tops[LAYOUT_BAR].y()}")
-check("the cards start at the top too", tops[LAYOUT_CARDS].y() < 80,
-      f"y={tops[LAYOUT_CARDS].y()}")
+check("the cards default to a vertical stack beside the game",
+      tops[LAYOUT_CARDS].height() > tops[LAYOUT_CARDS].width()
+      and tops[LAYOUT_CARDS].x() < 80,
+      str(tops[LAYOUT_CARDS].getRect()))
 check("the rows start down a side, not across the top",
       tops[LAYOUT_LIST].height() > tops[LAYOUT_LIST].width(),
       f"{tops[LAYOUT_LIST].width()}x{tops[LAYOUT_LIST].height()}")

@@ -116,7 +116,7 @@ DEFAULTS: dict[str, Any] = {
     # Light by default: it is the product's face, and the light overlay is the
     # only one of the three that stays legible over a bright game as well as a
     # dark one -- at the cost of being a little more opaque. dark | light | neon
-    "theme": "light",
+    "theme": "dark",
     # The countdown's face. "auto" takes the first of the built-in preferences
     # this machine actually has (Bahnschrift, then Segoe UI, then a mono); any
     # other value names one of the faces offered in the settings, and is ignored
@@ -249,14 +249,8 @@ DEFAULTS: dict[str, Any] = {
     # quitting, so the disappearance is not mistaken for a crash.
     "tray_hint_shown": False,
 
-    # Open the Flashwatch window when the program is launched, rather than going
-    # straight to the notification area. On, because a program that appears to do
-    # nothing when you double-click it is a program you double-click again.
-    #
-    # A login does not count as a launch, however this is set: the autostart entry
-    # carries a flag (see autostart.STARTUP_FLAG) and a boot always stays in the
-    # tray. Starting with Windows exists so Flashwatch is *already running* when a
-    # game begins, and a settings window every morning is the opposite of that.
+    # Legacy preference, retained for compatibility with existing settings files.
+    # Launch now always shows the window, regardless of this saved value.
     "open_window_on_launch": True,
 
     # --- first run -------------------------------------------------------

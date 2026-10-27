@@ -28,12 +28,8 @@ log = logging.getLogger(__name__)
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 VALUE_NAME = "Flashwatch"
 
-# Appended to the command Windows runs at boot, and to nothing else. It is how
-# the program tells a login apart from a double-click, which are the same process
-# started for opposite reasons: one is somebody asking to see the window, the
-# other is the machine getting Flashwatch ready in the background. Opening the
-# settings window at every boot would be nagging; not opening it when it was
-# double-clicked would look like nothing happened.
+# Retained for compatibility with existing Windows Run entries. Both a login
+# and a manual launch now show the window; this flag no longer hides it.
 STARTUP_FLAG = "--startup"
 
 

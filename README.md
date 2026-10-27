@@ -2,6 +2,13 @@
 
 # Flashwatch
 
+**Identidade Hextech (1.0.8):** novo cronômetro, artes escolhidas para o início,
+tipografia Beaufort/Spiegel e botões com brilho azul cristalizado no hover e foco.
+Janela redimensionável, menu com margens corrigidas e cartões com retrato,
+nome e feitiços quadrados. Reflexo de cristal no hover e resposta visual no clique.
+Executável local: `dist/hextech-1.0.8/FlashWatch-PTBR.exe`.
+Veja [recursos e validação visual](docs/IDENTIDADE-HEXTECH.md).
+
 **Baixar a edição brasileira para Windows:**
 [instalador (.msi)](https://github.com/MiharaxD/flashwatch-PTBR/releases/latest/download/FlashWatch-PTBR-Setup.msi)
 ou [executável portátil](https://github.com/MiharaxD/flashwatch-PTBR/releases/latest/download/FlashWatch-PTBR.exe).
@@ -21,9 +28,13 @@ cooldown). Other displays retain their presentation.
 Champion cards now remain after all cooldowns expire, until the session is reset.
 See [persistence revision and checks](docs/CARTOES-PERSISTENTES.md) and
 [icon appearance](docs/ICONES-DE-RECARGA.md).
-Current build: `dist/atualizacao-automatica/FlashWatch-PTBR.exe`.
+Current local build (1.0.4): `dist/visual-logo/FlashWatch-PTBR.exe`.
+Launch always shows the window, including Windows login and older preferences.
+Closing with X still hides it in the tray. See [launch behavior](docs/JANELA-AO-INICIAR.md).
+The application icon has rounded corners; the sidebar logo is larger, centered
+and transparent. See [logo assets and validation](docs/ICONES-E-LOGO.md).
 
-**Windows installer:** `dist/atualizacao-automatica/instalador/FlashWatch-PTBR-Setup.msi` installs the
+**Windows installer:** `dist/visual-logo/instalador/FlashWatch-PTBR-Setup.msi` installs the
 same verified executable for the current user, with Start Menu shortcuts and an
 optional desktop shortcut. See [installation instructions](docs/INSTALADOR.md).
 Build with Python 3.11 on Windows: `python build_installer.py`.

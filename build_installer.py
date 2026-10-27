@@ -20,7 +20,7 @@ import msilib
 from msilib import schema, sequence
 
 ROOT = Path(__file__).resolve().parent
-APP_SHA256 = "bb60194556ab1443c6d139c36a9a2e9fd2d9b2101c887c47b5b532aecdc297bf"
+APP_SHA256 = "1252879bcc6af539436ed7bc1861f76039de907824f62e068ce1470bae3f85be"
 UPGRADE_CODE = "{42E9D8B6-729D-4D25-8CD8-47326AD6D016}"
 REG_KEY = r"Software\FlashWatchPTBR\Installer"
 
@@ -65,7 +65,7 @@ def add_ui(db):
         return d
 
     welcome = dialog("Welcome", "Desktop", "Install", "Cancel")
-    welcome.text("Intro", 20, 57, 340, 25, 3, "Instalar a versão com cartões persistentes.")
+    welcome.text("Intro", 20, 57, 340, 25, 3, "Instalar o FlashWatch PT-BR com a identidade Hextech.")
     welcome.text("Path", 20, 86, 340, 38, 3, "Pasta de instalação:\n[INSTALLDIR]")
     welcome.checkbox("Desktop", 20, 128, 340, 18, 3, "DESKTOP_SHORTCUT",
                      "Criar atalho na área de trabalho", "Install")
@@ -115,7 +115,7 @@ def build(version: str, output: Path) -> Path:
     major, minor, patch = map(int, version.split("."))
     if major > 255 or minor > 255 or patch > 65535:
         raise ValueError("Versão fora dos limites do Windows Installer")
-    executable = ROOT / "dist/atualizacao-automatica/FlashWatch-PTBR.exe"
+    executable = ROOT / "dist/hextech-1.0.8/FlashWatch-PTBR.exe"
     if hashlib.sha256(executable.read_bytes()).hexdigest() != APP_SHA256:
         raise ValueError("O executável não corresponde à última build validada")
     output.mkdir(parents=True, exist_ok=True)
@@ -216,7 +216,7 @@ def build(version: str, output: Path) -> Path:
 
 if __name__ == "__main__":
     cli = argparse.ArgumentParser(description=__doc__)
-    cli.add_argument("--version", default="1.0.2", help="Versão do pacote MSI; não altera o aplicativo")
-    cli.add_argument("--out", type=Path, default=ROOT / "dist/atualizacao-automatica/instalador")
+    cli.add_argument("--version", default="1.0.8", help="Versão do pacote MSI; não altera o aplicativo")
+    cli.add_argument("--out", type=Path, default=ROOT / "dist/hextech-1.0.8/instalador")
     args = cli.parse_args()
     build(args.version, args.out.resolve())

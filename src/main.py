@@ -302,18 +302,13 @@ class Application:
             self._show_control()
 
     def _should_open_window(self) -> bool:
-        """Whether this launch should put the window on screen.
+        """Always show the window, including legacy settings and Windows login.
 
-        Two ways to say no, and they are different questions. A login is not a
-        launch -- Windows started this copy so it would be running before a game,
-        not so somebody could look at it -- and that is decided by the command
-        line rather than by the setting. The setting is for somebody who launches
-        Flashwatch by hand and wants it to go straight to the tray anyway.
+        The notification area is reached by closing the window, not by launch.
+        Old saved preferences and existing --startup shortcuts remain readable
+        but must not silently hide the application.
         """
-        if autostart.started_by_windows():
-            log.info("started by Windows, staying in the notification area")
-            return False
-        return bool(self.settings.get("open_window_on_launch", True))
+        return True
 
     # ------------------------------------------------------------------
     def _connect_ui(self) -> None:

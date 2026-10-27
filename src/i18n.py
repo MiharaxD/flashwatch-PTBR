@@ -319,7 +319,7 @@ STRINGS: dict[str, tuple[str, str, str]] = {
         "Relógio estimado:"),
     "ui.home_headline_idle": ("Rien a faire : lancez une partie",
                               "Nothing to do: start a game",
-        "Tudo pronto: inicie uma partida"),
+        "Tudo pronto para a próxima partida"),
     "ui.home_headline_idle_hint": (
         "Flashwatch attend en arriere-plan. La barre apparaitra toute seule des "
         "que l'ecran de jeu s'affiche, et se remplira au premier sort ennemi. "
@@ -329,7 +329,7 @@ STRINGS: dict[str, tuple[str, str, str]] = {
         "in-game screen does, and fills in on the first enemy spell. To see what "
         "it looks like right now and place it: Display, then \"Show sample "
         "cooldowns\".",
-        "O Flashwatch aguarda em segundo plano. A barra aparece quando a tela da partida abrir e recebe o primeiro feitiço inimigo detectado. Para vê-la e posicioná-la agora: Exibição, depois \"Mostrar recargas de exemplo\"."),
+        "As recargas inimigas aparecem quando o chat é lido."),
     "ui.home_headline_live": ("En train de lire votre chat",
                               "Reading your chat right now",
         "Lendo seu chat agora"),
@@ -365,7 +365,7 @@ STRINGS: dict[str, tuple[str, str, str]] = {
         "du chat, position de la barre.",
         "Three minutes: League's display mode, your client language, framing the "
         "chat, and where the bar sits.",
-        "Três minutos: modo de exibição do League, idioma do cliente, área do chat e posição da barra."),
+        "Configure o idioma, o chat e a posição do overlay."),
     "ui.guide_open": ("Ouvrir le guide", "Open the guide",
         "Abrir guia"),
     "ui.test_card": ("Test", "Test",
@@ -377,7 +377,7 @@ STRINGS: dict[str, tuple[str, str, str]] = {
         "A real game frame ships with the program. The test reads it end to end "
         "(finding the chat, OCR, recognising the spells) and starts the matching "
         "timers, with no game needed.",
-        "O programa inclui uma captura real de uma partida em inglês. O teste faz a leitura completa (localização do chat, OCR e reconhecimento de habilidades) e inicia os temporizadores correspondentes, sem precisar de uma partida."),
+        "Teste a leitura com a captura incluída no programa."),
     "ui.test_run": ("Lancer le test", "Run the test",
         "Executar teste"),
     "ui.test_again": ("Relancer le test", "Run the test again",
@@ -830,33 +830,21 @@ STRINGS: dict[str, tuple[str, str, str]] = {
         "Iniciar com o Windows"),
     "ui.autostart_note": (
         "Le programme doit tourner avant le debut de la partie : il ne peut "
-        "pas rattraper les annonces ecrites avant son lancement. Il demarre "
-        "dans la zone de notification, sans fenetre. Windows laisse aussi "
+        "pas rattraper les annonces ecrites avant son lancement. Windows laisse aussi "
         "desactiver cette entree dans le Gestionnaire des taches, onglet "
         "Demarrage.",
         "The program has to be running before the game starts: it cannot "
-        "recover announcements printed before it launched. It starts in the "
-        "notification area, with no window. Windows also lets you switch this "
+        "recover announcements printed before it launched. Windows also lets you switch this "
         "entry off from Task Manager's Startup tab.",
-        "O programa precisa estar aberto antes da partida: ele não recupera anúncios anteriores à sua abertura. Inicia na área de notificação, sem janela. Você também pode desativá-lo na aba Inicializar do Gerenciador de Tarefas."),
-    "ui.open_window": ("Ouvrir la fenetre au lancement",
-                       "Open the window on launch",
-        "Abrir janela ao iniciar"),
-    "ui.open_window_tip": (
-        "Decochez pour que Flashwatch demarre directement dans la zone de "
-        "notification. La fenetre reste accessible : double-cliquez l'icone de "
-        "la barre des taches.",
-        "Untick to have Flashwatch start straight in the notification area. The "
-        "window stays one double-click on the tray icon away.",
-        "Desmarque para iniciar o Flashwatch direto na área de notificação. Clique duas vezes no ícone para abrir a janela."),
+        "O programa precisa estar aberto antes da partida: ele não recupera anúncios anteriores à sua abertura. Você também pode desativá-lo na aba Inicializar do Gerenciador de Tarefas."),
     "ui.open_window_note": (
-        "Un demarrage avec Windows n'ouvre jamais la fenetre, quelle que soit "
-        "cette case : le programme est alors lance pour etre deja pret quand une "
-        "partie commence, pas pour etre regarde.",
-        "A start with Windows never opens the window, whatever this box says: "
-        "the program is launched then so that it is already running when a game "
-        "begins, not so that it can be looked at.",
-        "Iniciar com o Windows nunca abre a janela, independentemente desta opção: o objetivo é deixar o programa funcionando antes de uma partida começar."),
+        "La fenetre s'ouvre toujours au lancement, meme avec Windows. Fermer "
+        "avec X la masque dans la zone de notification. Double-cliquez sur "
+        "l'icone pour la rouvrir.",
+        "The window always opens on launch, including with Windows. Closing "
+        "with X hides it in the notification area. Double-click the tray icon "
+        "to reopen it.",
+        "A janela sempre aparece ao iniciar, inclusive com o Windows. Fechar no X envia para a bandeja. Clique duas vezes no ícone para reabrir."),
     "ui.autostart_failed": (
         "Windows a refuse la modification (strategie de securite ?). "
         "L'entree de demarrage n'a pas ete changee.",
@@ -898,12 +886,12 @@ STRINGS: dict[str, tuple[str, str, str]] = {
         "Champions appear as soon as the loading screen or the scoreboard is "
         "read, or on the first spell detected. A role picked here always wins "
         "over one read off the screen.",
-        "Os campeões aparecem quando a tela de carregamento ou o placar é lido, ou na primeira habilidade detectada. Uma função escolhida aqui tem prioridade sobre a leitura da tela."),
+        "Os campeões aparecem após a leitura da tela ou da primeira habilidade."),
     "ui.team_empty": (
         "Aucun ennemi repere pour l'instant. Ils s'ajoutent tout seuls au premier "
         "sort detecte.",
         "No enemy spotted yet. They add themselves on the first spell detected.",
-        "Nenhum inimigo identificado ainda. Eles aparecem na primeira habilidade detectada."),
+        "Nenhum inimigo identificado ainda."),
 
     # -- troubleshooting page --------------------------------------------
     "ui.help_intro": (

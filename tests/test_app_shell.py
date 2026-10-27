@@ -84,20 +84,18 @@ check("releasing the token lets the next copy in", handover is not None)
 token = handover
 
 def _should_open(app, *, started_by_windows=False, open_window_on_launch=True):
-    """Ask the launch rule a question, with one input swapped.
-
-    The rule reads the command line and the settings, so the only way to put a
-    question to it is to substitute one of those and put it back. Restoring in a
-    ``finally`` because everything after this shares the same Application.
-    """
+    """Exercise a launch with legacy preferences and Windows startup flags."""
     import autostart as autostart_module
     was_flag = autostart_module.started_by_windows
     was_setting = app.settings.get("open_window_on_launch")
     autostart_module.started_by_windows = lambda *_a: started_by_windows
     app.settings.set("open_window_on_launch", open_window_on_launch, save=False)
     try:
-        return app._should_open_window()
+        app.control.hide()
+        app._open_window_if_wanted()
+        return app._should_open_window() and app.control.isVisible()
     finally:
+        app.control.hide()
         autostart_module.started_by_windows = was_flag
         app.settings.set("open_window_on_launch", was_setting, save=False)
 
@@ -141,21 +139,22 @@ check("tray icon is visible", application.tray.isVisible())
 
 # ------------------------------------------------- what a launch looks like
 # A program that appears to do nothing when you double-click it is a program you
-# double-click again. The window is now part of launching -- but only of
-# *launching*: Windows starting this copy at login is not somebody asking to see
-# it, and a settings window every morning would be nagging.
+# double-click again. All launches show it, including Windows login and older
+# settings files that previously requested a hidden launch.
 #
 # This run is a first run, so the guide owns it and no settings window appears;
 # that exception is checked below, with the rest of the guide. What is checked
 # here is the rule itself, and that a launch it says yes to really does put the
 # window up.
 check("a double-click asks for the window", _should_open(application))
-check("...and the setting can send it straight to the tray instead",
-      not _should_open(application, open_window_on_launch=False))
-check("...and a login never opens it, whatever the setting says",
-      not _should_open(application, started_by_windows=True)
-      and not _should_open(application, started_by_windows=True,
-                           open_window_on_launch=True))
+check("...including a legacy preference to start hidden",
+      _should_open(application, open_window_on_launch=False))
+check("...and Windows login shows it for both legacy preference values",
+      _should_open(application, started_by_windows=True)
+      and _should_open(application, started_by_windows=True,
+                       open_window_on_launch=False))
+check("settings no longer offer a hidden launch",
+      not hasattr(application.control, "check_open_window"))
 application.control.hide()
 application._open_window_if_wanted()
 check("and a launch the rule says yes to really shows it",
@@ -182,7 +181,7 @@ check("closing the settings window hides it",
 
 # ...and the window must come back, or hiding it would be indistinguishable
 # from losing it.
-application.control.show()
+application._show_control()
 check("the window can be reopened after closing",
       application.control.isVisible())
 

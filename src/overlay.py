@@ -23,7 +23,7 @@ from pathlib import Path
 from time import monotonic
 from typing import NamedTuple
 
-from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QPainter,
                            QPainterPath, QPen, QPixmap)
 from PySide6.QtWidgets import QWidget
@@ -72,7 +72,7 @@ LAYOUT_BAR_V = "bar_vertical"
 # clear of the minimap and the item shop).
 LAYOUT_DEFAULTS = {
     LAYOUT_BAR: {"fraction": 0.30, "height": 58, "align": "top"},
-    LAYOUT_CARDS: {"fraction": 0.56, "height": 128, "align": "top"},
+    LAYOUT_CARDS: {"fraction": 0.085, "height": 720, "align": "left"},
     LAYOUT_LIST: {"fraction": 0.13, "height": 300, "align": "left"},
     # Narrow and tall, down the left side: a vertical track is the same strip
     # turned on its end, and the countdowns sit to the right of the portraits.
@@ -96,10 +96,10 @@ BAR_IDLE_ALPHA = 0.18
 BADGE_OVERLAP = 0.26
 
 # Fixed cards: one champion portrait, three spell icons and times underneath.
-CARD_PORTRAIT = 40
-CARD_BADGE = 24
+CARD_PORTRAIT = 42
+CARD_BADGE = 28
 CARD_GAP = 5
-CARD_PAD = 6
+CARD_PAD = 8
 
 # The countdown ladder: one colour per state, and only four states in the whole
 # program. Green while the spell is far off, amber once it is halfway back, red
@@ -156,10 +156,10 @@ THEMES: dict[str, dict] = {
         "shadow": (255, 255, 255, 200),
     },
     "dark": {
-        "panel": (14, 16, 22, 205),
+        "panel": (1, 10, 19, 225),
         "panel_alpha": 0.42,
         "idle_alpha": 0.18,
-        "border": (70, 80, 100, 190),
+        "border": (200, 170, 110, 190),
         "rail": (140, 152, 175, 150),
         "title": (225, 232, 245, 255),
         "role": (140, 152, 175, 255),
@@ -458,11 +458,11 @@ def _colour(theme: dict, key: str) -> QColor:
     return QColor(*theme.get(key, (255, 255, 255, 255)))
 
 
-def paint_card_cooldown_mask(painter: QPainter, rect, scale: float) -> None:
+def paint_card_cooldown_mask(painter: QPainter, rect, scale: float, *, square=False) -> None:
     """Translucent grey and an X, confined to a card's spell icon."""
     bounds = QRectF(rect)
     clip = QPainterPath()
-    clip.addEllipse(bounds)
+    clip.addRect(bounds) if square else clip.addEllipse(bounds)
     cx, cy = bounds.center().x(), bounds.center().y()
     half = min(bounds.width(), bounds.height()) * .22
     cross = QPainterPath()
@@ -1132,15 +1132,18 @@ class Overlay(QWidget):
 
     def _paint_spell_badge(self, painter: QPainter, theme: dict,
                            timer: ActiveTimer, rect: QRectF,
-                           scale: float) -> None:
+                           scale: float, *, square=False) -> None:
         """The spell, on an opaque disc so it reads over anything behind it."""
         painter.setBrush(_colour(theme, "badge"))
         painter.setPen(QPen(_colour(theme, "border"), max(1.0, 0.8 * scale)))
-        painter.drawEllipse(rect.adjusted(-1.0, -1.0, 1.0, 1.0))
+        if square:
+            painter.drawRect(rect.adjusted(-1.0, -1.0, 1.0, 1.0))
+        else:
+            painter.drawEllipse(rect.adjusted(-1.0, -1.0, 1.0, 1.0))
         painter.setBrush(Qt.NoBrush)
 
         icon = self.icons.get(self._spell_icon_path(timer), round(rect.width()),
-                              round_=True)
+                              round_=not square)
         if icon is not None:
             painter.drawPixmap(rect.topLeft(), icon)
         else:
@@ -1323,7 +1326,7 @@ class Overlay(QWidget):
         vertical = self.bar_is_vertical()
         metrics = self._bar_metrics(scale, vertical=vertical)
         self._paint_backing(painter, theme, scale, locked, idle=idle,
-                            radius=8.0 * scale)
+                            radius=8.0 * scale, alpha=0.0)
 
         start, end = self._bar_track_ends(metrics, vertical)
         if end <= start:
@@ -1677,7 +1680,7 @@ class Overlay(QWidget):
             "badge": badge,
             "text": text,
             "width": max(portrait, sum(column_widths) + 2 * column_gap) + 2 * pad,
-            "height": portrait + gap + rows * row_height + (rows - 1) * gap + 2 * pad,
+            "height": portrait + int(17*scale) + gap + rows * row_height + (rows - 1) * gap + 2 * pad,
             "column_widths": column_widths,
             "column_gap": column_gap,
             "row_height": row_height,
@@ -1731,7 +1734,7 @@ class Overlay(QWidget):
             spells = []
             for spell_index, spell_timer in enumerate(timers):
                 spell_row, spell_column = divmod(spell_index, 3)
-                row_y = (portrait.bottom() + 1 + metrics["gap"]
+                row_y = (portrait.bottom() + 1 + int(17*scale) + metrics["gap"]
                          + spell_row * (metrics["row_height"] + metrics["gap"]))
                 column_x = (x + metrics["pad"]
                             + sum(metrics["column_widths"][:spell_column])
@@ -1763,7 +1766,7 @@ class Overlay(QWidget):
 
         metrics = self._card_metrics(scale)
         self._paint_backing(painter, theme, scale, locked, idle=idle,
-                            radius=8.0 * scale)
+                            radius=8.0 * scale, alpha=0.0)
 
         if idle:
             if not locked:
@@ -1773,20 +1776,44 @@ class Overlay(QWidget):
 
         time_font = self._card_font(scale)
         # A champion has several cooldowns, so its portrait has a neutral border.
+        from hextech import cut_path, metal_frame
         for slot in self._card_slots(scale):
+            card_rect = QRectF(slot.rect).adjusted(1, metrics["portrait"]*.45, -1, -1)
+            painter.save()
+            painter.setOpacity(painter.opacity() * self.opacity())
+            panel = QColor(_colour(theme, "panel"))
+            panel.setAlpha(int(panel.alpha() * .9))
+            painter.fillPath(cut_path(card_rect, 6), panel)
+            metal_frame(painter, card_rect, strong=False)
+            painter.setBrush(Qt.NoBrush)
+            painter.setPen(QPen(QColor("#c8aa6e"), .7*scale))
+            painter.drawPath(cut_path(card_rect.adjusted(3,3,-3,-3), 8))
+            painter.restore()
             self._paint_portrait(painter, theme, slot.timer, slot.portrait)
             painter.setPen(QPen(_colour(theme, "border"), 1.2 * scale))
             painter.setBrush(Qt.NoBrush)
+            painter.drawEllipse(QRectF(slot.portrait).adjusted(-3,-3,3,3))
+            painter.setPen(QPen(QColor('#e1c58a'), 1.0*scale))
             painter.drawEllipse(slot.portrait)
+            cx, top = slot.portrait.center().x(), slot.portrait.top()-4*scale
+            diamond = QPainterPath(QPointF(cx, top-4*scale))
+            diamond.lineTo(cx+4*scale,top); diamond.lineTo(cx,top+4*scale)
+            diamond.lineTo(cx-4*scale,top); diamond.closeSubpath()
+            painter.fillPath(diamond, QColor('#042332'))
+            painter.drawPath(diamond)
+            name_font = QFont('Segoe UI'); name_font.setPixelSize(max(8,round(10*scale)))
+            painter.setFont(name_font); painter.setPen(QColor('#f0e6d2'))
+            painter.drawText(QRectF(slot.rect.x(),slot.portrait.bottom()+2*scale,
+                                   slot.rect.width(),14*scale), Qt.AlignCenter, slot.timer.champion_name)
             for index, spell in enumerate(slot.spells):
                 timer = spell.timer
                 if timer is not None:
-                    self._paint_spell_badge(painter, theme, timer, spell.badge, scale)
+                    self._paint_spell_badge(painter, theme, timer, spell.badge, scale, square=True)
                     value = self._card_display(timer)
                     if value:
-                        paint_card_cooldown_mask(painter, spell.badge, scale)
+                        paint_card_cooldown_mask(painter, spell.badge, scale, square=True)
                         self._paint_countdown(painter, theme, spell.text, value,
-                                              self._state_colour(theme, timer), time_font,
+                                              QColor("#ffca58" if timer.remaining() < 20 else "#f0e6d2"), time_font,
                                               Qt.AlignHCenter | Qt.AlignVCenter,
                                               uncertain=timer.uncertain, scale=scale)
                 else:
@@ -1797,7 +1824,7 @@ class Overlay(QWidget):
                     path = ult.icon_path if index == 0 and ult is not None else None
                     if index == 1:
                         path = self.assets.icon_for_spell("Flash")
-                    icon = self.icons.get(path, metrics["badge"], round_=True)
+                    icon = self.icons.get(path, metrics["badge"], round_=False)
                     if icon is not None:
                         painter.drawPixmap(spell.badge.topLeft(), icon)
                     else:

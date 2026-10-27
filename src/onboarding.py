@@ -119,6 +119,9 @@ LOOP_TICKS = 88
 # ---------------------------------------------------------------------------
 # The face
 # ---------------------------------------------------------------------------
+from theme import display_family
+from hextech import crystal_light, metal_frame, animations_enabled
+
 _SERIF = "Georgia"
 
 
@@ -141,7 +144,7 @@ def px(size: float, weight: int = QFont.Normal, *, italic: bool = False,
     canvas is scaled as a unit, so its type has to be measured in the same units
     as its rectangles.
     """
-    font = QFont(_SERIF if serif else family())
+    font = QFont(display_family() if serif else family())
     font.setPixelSize(max(1, int(round(size))))
     font.setWeight(weight)
     font.setItalic(italic)
@@ -756,7 +759,7 @@ class Weights:
         # Nothing animates in a window nobody is looking at: the state has to be
         # *arrived at* rather than left mid-transition, or a guide built before
         # being shown would open half-way through its own entrance.
-        if not self._owner.isVisible():
+        if not self._owner.isVisible() or not animations_enabled():
             animate = False
         motion = self._motions.get(key)
         if motion is None:
@@ -2521,6 +2524,8 @@ def paint_button(painter: QPainter, rect: QRectF, text: str, *,
         box(painter, rect, 10, fill=c("panel"),
             edge=mix(c("panel_edge"), QColor("#3a4268"), hover))
         colour = c("text")
+    metal_frame(painter, rect.adjusted(1, 1, -1, -1), strong=primary)
+    crystal_light(painter, rect.adjusted(1, 1, -1, -1), hover if enabled else 0)
     font = px(24 if primary else 23, QFont.Bold if primary else QFont.DemiBold)
     label = text
     if icon_before:

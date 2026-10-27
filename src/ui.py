@@ -72,13 +72,15 @@ from i18n import ENGLISH, FRENCH, PORTUGUESE, language_for, locale_for, tr
 from overlay import (LAYOUT_BAR, LAYOUT_CARDS, LAYOUT_LIST, LAYOUTS,
                      paint_card_cooldown_mask)
 from theme import (DANGER, INK, INK_FAINT, MENU, PAINT, READY, SIGNAL, SOON,
-                   art_path, control_qss, mark_pixmap, menu_family)
+                   art_path, control_qss, mark_pixmap, menu_family, display_family)
 from audio import PRESETS as audio_presets
 from overlay import FACE_AUTO, available_countdown_faces
 from roles import ROLES as lane_roles
 from version import __version__
 from zone_overlay import (ZONE_CHAT, ZONE_CLOCK, ZONE_LOADING,
                           ZONE_SCOREBOARD)
+
+from hextech import HexButton, HexPanel, metal_frame, cut_path
 
 log = logging.getLogger(__name__)
 
@@ -439,7 +441,7 @@ class Tile(QLabel):
         rect = QRectF(0.5, 0.5, self.width() - 1, self.height() - 1)
         painter.setPen(QPen(QColor(self._edge), 1))
         painter.setBrush(QColor(self._fill))
-        painter.drawRoundedRect(rect, self._radius, self._radius)
+        painter.drawPath(cut_path(rect, min(8, self._radius)))
         centre = rect.center()
         icons.paint_icon(painter,
                          QRectF(centre.x() - self._icon / 2,
@@ -448,43 +450,17 @@ class Tile(QLabel):
                          self._glyph, QColor(MENU["accent_pale"]))
 
 
-class RingMark(QLabel):
-    """The rail's brand: a 76 px ring at 3 px, with the mark inside it."""
+class RailMark(QLabel):
+    """The sidebar's larger mark, with no tile or decorative frame."""
 
     def __init__(self) -> None:
         super().__init__()
-        self._stroke = 3.0
+        self.setObjectName("RailMark")
+        self.setAlignment(Qt.AlignCenter)
 
-    def set_metrics(self, size: int, stroke: float) -> None:
+    def set_metrics(self, size: int) -> None:
         self.setFixedSize(size, size)
-        self._stroke = stroke
-        self.update()
-
-    def paintEvent(self, _event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing, True)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-        half = self._stroke / 2
-
-        # The logo fills the ring rather than sitting in the middle of it as a
-        # small tile of its own. It arrives as a rounded square, so it is the
-        # *square* cut that goes in here and this clip that shapes it: the
-        # rounded one would leave four transparent bites inside the circle.
-        inner = QRectF(self._stroke, self._stroke,
-                       self.width() - self._stroke * 2,
-                       self.height() - self._stroke * 2)
-        clip = QPainterPath()
-        clip.addEllipse(inner)
-        painter.save()
-        painter.setClipPath(clip)
-        painter.drawPixmap(inner.toRect(),
-                           mark_pixmap(round(inner.width()), square=True))
-        painter.restore()
-
-        painter.setPen(QPen(QColor(MENU["accent_deep"]), self._stroke))
-        painter.setBrush(Qt.NoBrush)
-        painter.drawEllipse(QRectF(half, half, self.width() - self._stroke,
-                                   self.height() - self._stroke))
+        self.setPixmap(mark_pixmap(size, transparent=True))
 
 
 class StatePill(QLabel):
@@ -518,9 +494,10 @@ class StatePill(QLabel):
             painter.drawEllipse(centre.adjusted(-grow, -grow, grow, grow))
         painter.setBrush(colour)
         painter.drawEllipse(centre)
+        metal_frame(painter, QRectF(self.rect()).adjusted(1,1,-1,-1))
 
 
-class HeroCard(QFrame):
+class HeroCard(HexPanel):
     """A card with an illustration behind it, faded in from the right.
 
     The one place this window uses a picture rather than geometry, and it earns
@@ -564,7 +541,7 @@ class HeroCard(QFrame):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
         clip = QPainterPath()
-        clip.addRoundedRect(QRectF(self.rect()).adjusted(1, 1, -1, -1), 13, 13)
+        clip = cut_path(QRectF(self.rect()).adjusted(2, 2, -2, -2), 10)
         painter.setClipPath(clip)
 
         layer = QPixmap(panel.size())
@@ -579,11 +556,14 @@ class HeroCard(QFrame):
         inner.setCompositionMode(QPainter.CompositionMode_DestinationIn)
         mask = QLinearGradient(0, 0, panel.width(), 0)
         mask.setColorAt(0.0, QColor(0, 0, 0, 0))
-        mask.setColorAt(0.45, QColor(0, 0, 0, 70))
-        mask.setColorAt(1.0, QColor(0, 0, 0, 225))
+        mask.setColorAt(0.35, QColor(0, 0, 0, 160))
+        mask.setColorAt(0.65, QColor(0, 0, 0, 245))
+        mask.setColorAt(1.0, QColor(0, 0, 0, 255))
         inner.fillRect(layer.rect(), mask)
         inner.end()
         painter.drawPixmap(panel, layer)
+        painter.setClipping(False)
+        metal_frame(painter, QRectF(self.rect()).adjusted(1, 1, -1, -1))
 
 
 class LayoutTile(QWidget):
@@ -683,7 +663,7 @@ class LayoutTile(QWidget):
         painter.setBrush(QColor(MENU["accent_wash_2"] if self._checked
                                 else MENU["field"]))
         edge = (MENU["accent_deep"] if self._checked
-                else MENU["accent_btn"] if self._hover else "#232941")
+                else MENU["accent_btn"] if self._hover else MENU["card_edge"])
         painter.setPen(QPen(QColor(edge), 1))
         painter.drawRoundedRect(body, radius, radius)
 
@@ -704,7 +684,7 @@ class LayoutTile(QWidget):
                       round((self.height() - self._thumb.height()) / 2),
                       self._thumb.width(), self._thumb.height())
         painter.setPen(QPen(QColor(MENU["track"]), 1))
-        painter.setBrush(QColor("#161b31"))
+        painter.setBrush(QColor(MENU["sunken"]))
         painter.drawRoundedRect(QRectF(thumb).adjusted(0.5, 0.5, -0.5, -0.5),
                                 self._radio * 8 / 22, self._radio * 8 / 22)
         inset = round(self._pad * 0.7)
@@ -724,7 +704,7 @@ class Disclosure(QWidget):
     def __init__(self, title: str, window: "ControlWindow") -> None:
         super().__init__()
         self._window = window
-        self.button = QPushButton(f"   {title}")
+        self.button = HexButton(f"   {title}")
         self.button.setProperty("role", "link")
         self.button.setCheckable(True)
         self.button.setCursor(Qt.PointingHandCursor)
@@ -878,7 +858,7 @@ class TitleBar(QWidget):
                 ("minimise", window.showMinimized, "chrome"),
                 ("maximise", window.toggle_max, "chrome"),
                 ("close", window.close, "chrome_close")):
-            button = QPushButton()
+            button = HexButton()
             button.setProperty("role", role)
             button.setProperty("chrome", glyph)
             button.setCursor(Qt.ArrowCursor)
@@ -978,6 +958,7 @@ class ControlWindow(QWidget):
         self._scaled: list[tuple] = []
         self._scale = 1.0
         self._maximised = False
+        self._rescaling = False
         self._placed = False
         # (result, started) of the last self-test, so the report can be redrawn
         # at a new scale. None until the button has been pressed once.
@@ -989,7 +970,7 @@ class ControlWindow(QWidget):
         # not a Qt.Tool.
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
 
-        self.shell = QWidget(self)
+        self.shell = HexPanel(self)
         self.shell.setObjectName("Shell")
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -1062,16 +1043,44 @@ class ControlWindow(QWidget):
                   room.top() + (room.height() - self.height()) // 2)
 
     def toggle_max(self) -> None:
-        """Grow the canvas to fill the screen, or put it back.
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
 
-        Not ``showMaximized``: the window is a fixed-ratio drawing, and a
-        maximised frame would stretch its frame around a canvas that cannot
-        stretch. Growing the scale is the same gesture done properly.
-        """
-        self._maximised = not self._maximised
-        self._apply_scale(self._maximised_scale() if self._maximised
-                          else self._fitted_scale())
-        self.centre()
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._loading or self._rescaling or not hasattr(self, 'title_bar'):
+            return
+        self._rescaling = True
+        try:
+            scale = max(.6, min(self.width()/1448, self.height()/1086, 1.2))
+            if abs(scale-self._scale) > .005:
+                self._apply_scale(scale, resize_window=False)
+        finally:
+            self._rescaling = False
+
+    def nativeEvent(self, event_type, message):
+        # Native hit-testing restores edge/corner resizing for the frameless shell.
+        import sys
+        if sys.platform == 'win32' and not self.isMaximized():
+            import ctypes
+            from ctypes import wintypes
+            msg = wintypes.MSG.from_address(int(message))
+            if msg.message == 0x0084:  # WM_NCHITTEST
+                bounds = wintypes.RECT()
+                ctypes.windll.user32.GetWindowRect(int(self.winId()), ctypes.byref(bounds))
+                x = ctypes.c_short(msg.lParam & 0xffff).value
+                y = ctypes.c_short((msg.lParam >> 16) & 0xffff).value
+                edge = max(6, round(7*self.devicePixelRatioF()))
+                left, right = x < bounds.left+edge, x >= bounds.right-edge
+                top, bottom = y < bounds.top+edge, y >= bounds.bottom-edge
+                hit = (13 if left else 14 if right else 12) if top else (
+                       (16 if left else 17 if right else 15) if bottom else
+                       (10 if left else 11 if right else 0))
+                if hit:
+                    return True, hit
+        return super().nativeEvent(event_type, message)
 
     def showEvent(self, event) -> None:
         """Centre it the first time, and only the first time.
@@ -1153,7 +1162,7 @@ class ControlWindow(QWidget):
                 return spaces, padding
         return 1, 12.0
 
-    def _apply_scale(self, scale: float) -> None:
+    def _apply_scale(self, scale: float, *, resize_window=True) -> None:
         """Redraw the whole canvas at ``scale``. The only place sizes are set."""
         self._scale = scale
         spaces, nav_padding = self._fit_nav(scale)
@@ -1180,7 +1189,8 @@ class ControlWindow(QWidget):
                                       QSizePolicy.Fixed)
                 elif kind == "font":
                     size, weight, mono, spacing, italic = args
-                    font = QFont("Consolas" if mono else family)
+                    heading = target.property("role") in ("h1", "h2", "h3") or target.objectName() == "RailName"
+                    font = QFont("Consolas" if mono else display_family() if heading else family)
                     font.setPixelSize(max(6, round(size * scale)))
                     font.setWeight(weight)
                     font.setItalic(italic)
@@ -1208,7 +1218,10 @@ class ControlWindow(QWidget):
             except RuntimeError:                      # pragma: no cover
                 continue                              # a widget already gone
         self.title_bar.rescale(scale)
-        self.setFixedSize(self.s(CANVAS.width()), self.s(CANVAS.height()))
+        if resize_window:
+            self.setMinimumSize(900, 650)
+            self.setMaximumSize(16777215, 16777215)
+            self.resize(self.s(CANVAS.width()), self.s(CANVAS.height()))
         self._sync_nav_icons()
         # Sets its own fonts, so it is redrawn here rather than replayed above.
         self._render_test_report()
@@ -1264,7 +1277,7 @@ class ControlWindow(QWidget):
                icon: float = 20, colour: str = "", width: float | None = None,
                gap: float = 14) -> QPushButton:
         """A button at the maquette's height, type size and icon size."""
-        button = QPushButton(text)
+        button = HexButton(text)
         if role:
             button.setProperty("role", role)
         button.setCursor(Qt.PointingHandCursor)
@@ -1301,7 +1314,7 @@ class ControlWindow(QWidget):
 
     def _card(self, role: str, padding: tuple[float, float, float, float],
               gap: float = 0) -> tuple[QFrame, QVBoxLayout]:
-        card = QFrame()
+        card = HexPanel()
         card.setProperty("role", role)
         layout = QVBoxLayout(card)
         self.pad(layout, *padding)
@@ -1335,29 +1348,31 @@ class ControlWindow(QWidget):
     def _build_rail(self, pages) -> QWidget:
         """The side rail: who this is, where to go, and the two ways out.
 
-        ``Flashwatch App.dc.html``: 237 wide, padding 32/16/22, a 76 px ring, the
+        ``Flashwatch App.dc.html``: 237 wide, padding 32/16/22, the
         name at 27/700, nav rows of 64 at 19 px, and two 60 px buttons at the
         bottom.
         """
-        rail = QWidget()
+        rail = HexPanel()
+        rail.setProperty("role", "rail")
         rail.setObjectName("Rail")
         self.size_of(rail, width=RAIL_W)
         layout = QVBoxLayout(rail)
         self.pad(layout, 16, 32, 16, 22)
         self.gap(layout, 0)
 
-        brand = self._column(0, margins=(18, 0, 18, 0))
-        ring = RingMark()
-        self.custom(ring, lambda w, s: w.set_metrics(max(20, round(76 * s)),
-                                                     max(1.0, 3 * s)))
-        brand.addWidget(ring)
+        brand = self._column(0, margins=(4, 0, 4, 0))
+        mark = RailMark()
+        self.custom(mark, lambda w, s: w.set_metrics(max(20, round(164 * s))))
+        brand.addWidget(mark, 0, Qt.AlignHCenter)
         self.space(brand, 24)
-        name = self.label("Flashwatch", 27, W700, wrap=False, spacing=-0.2)
+        name = self.label("FLASHWATCH", 27, W700, wrap=False, spacing=-0.2)
         name.setObjectName("RailName")
+        name.setAlignment(Qt.AlignCenter)
         brand.addWidget(name)
         self.space(brand, 6)
         version = self.label(f"v{__version__}", 16, W600, wrap=False)
         version.setObjectName("RailVersion")
+        version.setAlignment(Qt.AlignCenter)
         brand.addWidget(version)
         self.space(brand, 16)
         rule = QFrame()
@@ -1367,14 +1382,15 @@ class ControlWindow(QWidget):
         self.space(brand, 16)
         tagline = self.label(tr("ui.tagline"), 15, W500, line=24)
         tagline.setObjectName("RailTagline")
-        brand.addWidget(tagline)
+        tagline.hide()
+        rail.setToolTip(tr("ui.tagline"))
         layout.addLayout(brand)
 
-        self.space(layout, 30)
+        self.space(layout, 6)
         self.nav_buttons: list[QPushButton] = []
         nav = self._column(6)
         for index, (glyph, label, _page) in enumerate(pages):
-            button = QPushButton(f"    {label}")
+            button = HexButton(f"    {label}")
             button.setProperty("role", "nav")
             button.setProperty("glyph", glyph)
             button.setProperty("label", label)
@@ -1418,8 +1434,8 @@ class ControlWindow(QWidget):
         """
         size = max(6, round(24 * self._scale))
         for button in getattr(self, "nav_buttons", ()):
-            colour = (MENU["accent_pale"] if button.isChecked()
-                      else MENU["dim_2"])
+            colour = (MENU["gold"] if button.isChecked()
+                      else MENU["gold"])
             button.setIcon(QIcon(icons.icon(str(button.property("glyph")),
                                             size, colour)))
             button.setIconSize(QSize(size, size))
@@ -1465,7 +1481,7 @@ class ControlWindow(QWidget):
 
         buttons = self._row(16)
         self.button_update = self.button(tr("update.install"), "refresh",
-                                         role="primary", height=56, size=17,
+                                         role="primary", height=60, size=17, width=270,
                                          colour="#ffffff")
         self.button_update.clicked.connect(self.update_requested.emit)
         self.button_update_notes = self.button(tr("update.notes"), height=56,
@@ -1505,8 +1521,8 @@ class ControlWindow(QWidget):
 
         # The headline card: what the program is doing, in a sentence, with the
         # five readouts that are the detail behind it.
-        hero = HeroCard("hero", "home-hero.jpg", 520)
-        self.custom(hero, lambda w, s: w.set_art_width(round(520 * s)))
+        hero = HeroCard("hero", "hextech-void.jpg", 520)
+        self.custom(hero, lambda w, s: w.set_art_width(round(580 * s)))
         hero_layout = QVBoxLayout(hero)
         self.pad(hero_layout, 26, 26, 30, 26)
         self.gap(hero_layout, 0)
@@ -1514,8 +1530,8 @@ class ControlWindow(QWidget):
         head = self._row(22)
         head.addWidget(self._tile("play"), 0, Qt.AlignTop)
         column = self._column(0)
-        self.label_headline = self.label(tr("ui.home_headline_boot"), 27, W600,
-                                         role="h1", spacing=-0.2)
+        self.label_headline = self.label(tr("ui.home_headline_boot").upper(), 30, W600,
+                                         role="h1", spacing=.5)
         column.addWidget(self.label_headline)
         self.space(column, 16)
         self.label_headline_hint = self.label(tr("ui.home_headline_boot_hint"),
@@ -1534,6 +1550,7 @@ class ControlWindow(QWidget):
         hero_layout.addLayout(head)
         self.space(hero_layout, 22)
         hero_layout.addWidget(self._build_readouts())
+        self.custom(hero, lambda w, s: w.setMinimumHeight(round(300*s)))
         layout.addWidget(hero)
         self.space(layout, 22)
 
@@ -1547,21 +1564,21 @@ class ControlWindow(QWidget):
         # Roles used to be a tab of their own, which meant a permanently empty
         # tab: nothing can be in it until a spell has been read. It belongs with
         # the live state instead.
-        enemies = HeroCard("hero_3", "enemies.jpg", 460)
-        self.custom(enemies, lambda w, s: w.set_art_width(round(460 * s)))
+        enemies = HeroCard("hero_3", "hextech-champions.jpg", 460)
+        self.custom(enemies, lambda w, s: w.set_art_width(round(570 * s)))
         enemies_row = QHBoxLayout(enemies)
         self.pad(enemies_row, 26, 26, 30, 28)
         self.gap(enemies_row, 22)
         enemies_row.addWidget(self._tile("person"), 0, Qt.AlignTop)
         enemies_column = self._column(0)
-        enemies_column.addWidget(self.label(tr("ui.enemies"), 24, W600,
-                                            role="h2", width=660))
+        enemies_column.addWidget(self.label(tr("ui.enemies").upper(), 28, W600,
+                                            role="h2", max_width=660))
         self.space(enemies_column, 16)
         enemies_column.addWidget(self.label(tr("ui.team_help"), 16, W500,
-                                            role="body", line=27, width=660))
+                                            role="body", line=27, max_width=660))
         self.space(enemies_column, 20)
         self.label_team_empty = self.label(tr("ui.team_empty"), 16, W500,
-                                           role="dim", line=27, width=660)
+                                           role="dim", line=27, max_width=660)
         enemies_column.addWidget(self.label_team_empty)
         self.team_container = QWidget()
         self.team_layout = QGridLayout(self.team_container)
@@ -1571,6 +1588,7 @@ class ControlWindow(QWidget):
         enemies_column.addWidget(self.team_container)
         enemies_row.addLayout(enemies_column, 1)
         enemies_row.addStretch(0)
+        self.custom(enemies, lambda w, s: w.setMinimumHeight(round(240*s)))
         layout.addWidget(enemies)
         self.space(layout, 22)
 
@@ -1596,7 +1614,7 @@ class ControlWindow(QWidget):
         row = QHBoxLayout(panel)
         self.pad(row, 0, 0, 0, 0)
         self.gap(row, 0)
-        self.size_of(panel, width=1090)
+        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
 
         self.label_game = self.label("-", 16, W600, role="value", wrap=False)
         self.label_region = self.label("-", 16, W500, role="value_off",
@@ -1637,18 +1655,19 @@ class ControlWindow(QWidget):
         return panel
 
     def _build_guide_card(self) -> QWidget:
-        card, layout = self._card("hero_2", (28, 26, 28, 26), 0)
+        card, layout = self._card("hero_2", (28, 30, 28, 30), 0)
+        self.custom(card, lambda w, s: w.setMinimumHeight(round(250*s)))
         row = self._row(22)
         row.addWidget(self._tile("report"), 0, Qt.AlignTop)
         column = self._column(0)
-        column.addWidget(self.label(tr("ui.guide_card"), 24, W600, role="h2"))
+        column.addWidget(self.label(tr("ui.guide_card").upper(), 28, W600, role="h2"))
         self.space(column, 16)
         column.addWidget(self.label(tr("ui.guide_card_hint"), 16, W500,
                                     role="body", line=27))
         self.space(column, 22)
         button_row = self._row(0)
         guide_button = self.button(tr("ui.guide_open"), "exit", role="accent",
-                                   height=56, size=17, colour=MENU["accent_pale"])
+                                   height=60, size=17, width=240, colour=MENU["gold"])
         guide_button.clicked.connect(self.guide_requested.emit)
         button_row.addWidget(guide_button)
         button_row.addStretch(1)
@@ -1669,11 +1688,12 @@ class ControlWindow(QWidget):
         letting a pass be read as more than it is; that is what framing the chat
         during a game is for.
         """
-        card, layout = self._card("hero_2", (28, 26, 28, 26), 0)
+        card, layout = self._card("hero_2", (28, 30, 28, 30), 0)
+        self.custom(card, lambda w, s: w.setMinimumHeight(round(250*s)))
         row = self._row(22)
         row.addWidget(self._tile("check_circle"), 0, Qt.AlignTop)
         column = self._column(0)
-        column.addWidget(self.label(tr("ui.test_card"), 24, W600, role="h2"))
+        column.addWidget(self.label(tr("ui.test_card").upper(), 28, W600, role="h2"))
         self.space(column, 14)
         column.addWidget(self.label(tr("ui.test_hint"), 16, W500, role="body",
                                     line=27))
@@ -1681,7 +1701,7 @@ class ControlWindow(QWidget):
 
         button_row = self._row(16)
         self.button_test = self.button(tr("ui.test_run"), "check_circle",
-                                       role="primary", height=56, size=17,
+                                       role="primary", height=60, size=17, width=270,
                                        colour="#ffffff")
         self.button_test.clicked.connect(self._on_test_clicked)
         self.label_test_state = self.label("", 15, W500, role="dim", wrap=False)
@@ -1814,8 +1834,8 @@ class ControlWindow(QWidget):
         # it sits, which theme, how big.
         trial, trial_layout = self._card("card_2", (20, 18, 20, 18), 0)
         row = self._row(20)
-        row.addWidget(self._tile("scanner", 52, 12, 24, fill="#241a4d",
-                                 edge="#453a80"), 0, Qt.AlignTop)
+        row.addWidget(self._tile("scanner", 52, 12, 24, fill=MENU["tile"],
+                                 edge=MENU["tile_edge"]), 0, Qt.AlignTop)
         column = self._column(0)
         column.addWidget(self.label(tr("ui.demo"), 23, W600, role="h2"))
         self.space(column, 10)
@@ -2283,13 +2303,6 @@ class ControlWindow(QWidget):
         self.check_autostart.setChecked(autostart.is_enabled())
         self.check_autostart.toggled.connect(self._on_autostart_toggled)
         startup_column.addWidget(self.check_autostart)
-        self.space(startup_column, 10)
-        self.check_open_window = self._switch(tr("ui.open_window"))
-        self.check_open_window.setToolTip(tr("ui.open_window_tip"))
-        self.check_open_window.setChecked(
-            bool(self.settings.get("open_window_on_launch", True)))
-        self.check_open_window.toggled.connect(self._on_settings_changed)
-        startup_column.addWidget(self.check_open_window)
         self.space(startup_column, 14)
         self.label_autostart = self.label(tr("ui.autostart_note"), 15, W500,
                                           role="dim", line=24, width=1000)
@@ -2462,7 +2475,7 @@ class ControlWindow(QWidget):
             # not read my chat" has to send is exactly what is in these boxes.
             head = self._row(12)
             head.addWidget(self.label(tr(key), 14, W500, role="hint"), 1)
-            copy = QPushButton()
+            copy = HexButton()
             copy.setProperty("role", "quiet")
             copy.setCursor(Qt.PointingHandCursor)
             self.size_of(copy, 34, 34)
@@ -2672,7 +2685,7 @@ class ControlWindow(QWidget):
             self.label_pill.update()
 
         headline, hint = HEADLINES.get(state, HEADLINE_IDLE)
-        self.label_headline.setText(tr(headline))
+        self.label_headline.setText(tr(headline).upper())
         self.label_headline_hint.setText(tr(hint))
 
     # ------------------------------------------------------------------
@@ -2751,7 +2764,6 @@ class ControlWindow(QWidget):
             "audio_sfx": self.combo_sfx.currentData() or "chime",
             "capture_interval_ms": self.spin_interval.value(),
             "update_check_enabled": self.check_updates.isChecked(),
-            "open_window_on_launch": self.check_open_window.isChecked(),
         })
         self.settings_changed.emit()
 

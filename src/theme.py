@@ -244,27 +244,27 @@ FONT_SERIF = '"Georgia", "Times New Roman", serif'
 # ---------------------------------------------------------------------------
 GUIDE = {
     # The window's ground: a radial wash, brighter at the top left.
-    "bg_core": "#131a33",
-    "bg_mid": "#0a0e1c",
-    "bg_edge": "#070a14",
-    "header": "#0a0d19",
+    "bg_core": "#0b2737",
+    "bg_mid": "#04121e",
+    "bg_edge": "#010a13",
+    "header": "#06111c",
     "rule": "#161b2e",           # the two full-width divider lines
     "hairline": "#2a3050",       # a rule inside a figure, the stepper's spine
     # Surfaces.
     "panel": "#0c1122",          # the path card, the back button
-    "panel_edge": "#262d49",
-    "note": "#0d1224",           # an information note
+    "panel_edge": "#655337",
+    "note": "#071724",           # an information note
     "note_edge": "#262c48",
-    "card": "#0b0f1e",           # a pickable card at rest
+    "card": "#040f19",           # a pickable card at rest
     "card_edge": "#242a44",
-    "card_on": "#171233",        # ...and picked, top of its gradient
-    "card_on_2": "#100d24",
+    "card_on": "#103440",        # ...and picked, top of its gradient
+    "card_on_2": "#061c28",
     "screen": "#0a1120",         # the big framed figure on the right
-    "screen_edge": "#6c4be0",
+    "screen_edge": "#c8aa6e",
     "inset": "#05070e",          # a thumbnail's ground
     "inset_edge": "#2b3252",
     # Ink.
-    "ink": "#ffffff",
+    "ink": "#f0e6d2",
     "text": "#dbe0f0",
     "text_2": "#c2c9de",
     "text_3": "#b3bad3",
@@ -273,19 +273,19 @@ GUIDE = {
     "dim_2": "#9aa3bf",
     "faint": "#8f97b6",
     # The accent, at the values the mockups actually use it at.
-    "accent": "#7c3aed",
-    "accent_btn": "#6d28d9",     # the primary button, the filled stepper node
-    "accent_btn_2": "#5b21b6",   # ...on the last screen, one step deeper
-    "accent_lit": "#8b5cf6",
-    "accent_pale": "#c4b5fd",
-    "accent_soft": "#a78bfa",
-    "accent_deep": "#4c1d95",
-    "accent_night": "#1a1240",   # the active stepper node's fill
+    "accent": "#30bddb",
+    "accent_btn": "#125569",     # the primary button, the filled stepper node
+    "accent_btn_2": "#0c3748",   # ...on the last screen, one step deeper
+    "accent_lit": "#6bdfff",
+    "accent_pale": "#a3ecf5",
+    "accent_soft": "#82dbe9",
+    "accent_deep": "#0a3b50",
+    "accent_night": "#0a2433",   # the active stepper node's fill
     # The stepper's unvisited nodes.
     "step_bg": "#12172b",
     "step_ring": "#3a4166",
     "step_off": "#3a4062",
-    "ring_off": "#4a5175",
+    "ring_off": "#637783",
     # Verdicts. Green for a box ticked, red for the one setting that cannot work.
     "ok": "#34d399",
     "bad": "#ef4444",
@@ -349,16 +349,18 @@ def brand_path(name: str) -> Path:
     return _font_dir().parent / "brand" / name
 
 
-_MARK: dict[bool, QPixmap] = {}
+_MARK: dict[tuple[bool, bool], QPixmap] = {}
 
 
-def mark_pixmap(size: int = 256, *, square: bool = False) -> QPixmap:
+def mark_pixmap(size: int = 256, *, square: bool = False,
+                transparent: bool = False) -> QPixmap:
     """The application's logo, at ``size``.
 
     Two cuts of the same picture, because two shapes are asked of it. The
     rounded tile is the icon everywhere an icon goes -- tray, taskbar, window
     headers -- and the square one is for callers that clip it themselves, where
     rounded corners would leave four transparent bites out of the shape.
+    The sidebar uses a separate transparent cut with no background tile.
 
     The painted mark below it is the fallback, not the subject. It was the whole
     story while the program had no artwork -- geometry rather than a file, so the
@@ -370,16 +372,17 @@ def mark_pixmap(size: int = 256, *, square: bool = False) -> QPixmap:
     Loaded once and scaled per caller: the file is 80 KB and decoding it for
     every header repaint would be a waste.
     """
-    if square not in _MARK:
-        name = ("flashwatch-256.png" if square
-                else "flashwatch-round-256.png")
+    key = (square, transparent)
+    if key not in _MARK:
+        name = ("flashwatch-transparent-512.png" if transparent else
+                "flashwatch-256.png" if square else "flashwatch-round-256.png")
         path = brand_path(name)
         loaded = QPixmap(str(path)) if path.exists() else QPixmap()
         if loaded.isNull():
             log.warning("no logo at %s, drawing the fallback mark", path)
             loaded = _drawn_mark()
-        _MARK[square] = loaded
-    mark = _MARK[square]
+        _MARK[key] = loaded
+    mark = _MARK[key]
     if size == mark.width():
         return mark
     return mark.scaled(size, size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -435,53 +438,53 @@ def _drawn_mark() -> QPixmap:
 # is nearly black, and a white sheet in that context is a flashbang.
 MENU = {
     # Grounds, front to back: the window, the title bar, the side rail.
-    "window": "#0a0d1a",
-    "chrome": "#0d1120",
-    "chrome_line": "#1a2036",
-    "chrome_hover": "#151a2c",
+    "window": "#010a13",
+    "chrome": "#06111c",
+    "chrome_line": "#514329",
+    "chrome_hover": "#113747",
     "close_hover": "#c0392b",
-    "rail": "#0b0f1c",
-    "edge": "#1b2038",             # the window's own hairline
+    "rail": "#030d17",
+    "edge": "#785a28",             # the window's own hairline
     # Cards. Two grounds because the maquettes use two: the plain card, and the
     # tinted one that carries a heading and an illustration.
-    "card": "#0e1226",
-    "card_2": "#10142a",
-    "card_edge": "#232941",
-    "card_edge_2": "#262c4c",
-    "hero_a": "#141034",
-    "hero_b": "#12132e",
-    "hero_c": "#101a33",
-    "hero_edge": "#2b2f55",
+    "card": "#091724",
+    "card_2": "#0b1a27",
+    "card_edge": "#665233",
+    "card_edge_2": "#665233",
+    "hero_a": "#071724",
+    "hero_b": "#081825",
+    "hero_c": "#0a1e2b",
+    "hero_edge": "#9b7c46",
     # Inset things: fields, read-only logs, the pasted line.
-    "sunken": "#0b0f1e",
-    "field": "#0e1226",
-    "field_edge": "#262d49",
-    "field_hover": "#3a4268",
+    "sunken": "#040f19",
+    "field": "#091724",
+    "field_edge": "#655337",
+    "field_hover": "#55cce8",
     # The rounded square that carries a card's icon.
-    "tile": "#2b1a63",
-    "tile_edge": "#4b3a94",
+    "tile": "#102e3a",
+    "tile_edge": "#8b7143",
     # Navigation.
-    "nav_on": "#1a1440",
-    "nav_on_edge": "#3a2c7a",
-    "nav_hover": "#141a2e",
-    "rule": "#232a44",
+    "nav_on": "#0b303e",
+    "nav_on_edge": "#b39660",
+    "nav_hover": "#102b39",
+    "rule": "#514329",
     # Ink, brightest first. The maquettes use four weights of white and two of
     # grey, and the difference between them is what ranks a card's own heading
     # against the sentence under it.
-    "ink": "#ffffff",
-    "ink_2": "#e4e8f5",
-    "ink_3": "#c6ccdf",
-    "ink_4": "#b6bdd3",
-    "dim": "#9ba3bd",
-    "dim_2": "#8b93ad",
+    "ink": "#f0e6d2",
+    "ink_2": "#e6ddc9",
+    "ink_3": "#c9c8bd",
+    "ink_4": "#b8bdb7",
+    "dim": "#a3b2b7",
+    "dim_2": "#9ba9ad",
     # The accent, at the values the maquettes actually use it at.
-    "accent": "#8B5CF6",
-    "accent_deep": "#7C3AED",
-    "accent_btn": "#6D28D9",
-    "accent_pale": "#c4b5fd",
-    "accent_ink": "#f0eefc",
-    "accent_wash": "#1b1440",
-    "accent_wash_2": "#150f34",
+    "accent": "#54d3ef",
+    "accent_deep": "#17627a",
+    "accent_btn": "#104859",
+    "accent_pale": "#a3ecf5",
+    "accent_ink": "#f0e6d2",
+    "accent_wash": "#0d2b38",
+    "accent_wash_2": "#08212c",
     # States.
     "danger": "#F87171",
     "danger_wash": "rgba(193, 0, 0, 0.06)",
@@ -490,17 +493,17 @@ MENU = {
     "warn": "#E9A23B",
     "ok": "#34D399",
     "info": "#38BDF8",
-    "gold": "#c9a227",
+    "gold": "#c8aa6e",
     # Controls.
-    "track": "#2a3150",
-    "ring_off": "#4a5175",
-    "knob": "#ffffff",
+    "track": "#253e4b",
+    "ring_off": "#637783",
+    "knob": "#f0e6d2",
 }
 
 # The maquettes' own face, embedded under SIL OFL, and already shipped for the
 # setup guide. Loaded once, on first use, because a QFontDatabase call before the
 # QApplication exists is ignored.
-FONT_MENU = "Mulish"
+FONT_MENU = "Spiegel_TT_Regular"
 _MENU_FAMILY: str | None = None
 
 
@@ -529,7 +532,7 @@ def art_path(name: str) -> Path:
 
 
 def menu_family() -> str:
-    """Mulish, or whatever Windows has if the file is missing.
+    """Spiegel, or whatever Windows has if the file is missing.
 
     The fallback is deliberate rather than fatal: a missing font file should make
     the window look ordinary, not stop it opening. Shared with the setup guide --
@@ -544,11 +547,27 @@ def menu_family() -> str:
             families = QFontDatabase.applicationFontFamilies(handle)
             if families:
                 _MENU_FAMILY = families[0]
+                QFontDatabase.addApplicationFont(str(_font_dir() / "Spiegel_TT_Bold.ttf"))
             else:
                 log.warning("could not load %s", path)
         else:
             log.warning("no interface font at %s", path)
     return _MENU_FAMILY
+
+
+_DISPLAY_FAMILY = None
+
+def display_family() -> str:
+    """Bundled Beaufort for headings; readable fallback when unavailable."""
+    global _DISPLAY_FAMILY
+    if _DISPLAY_FAMILY is None:
+        _DISPLAY_FAMILY = "Georgia"
+        for name in ("BeaufortforLOL-Regular.ttf", "BeaufortforLOL-Bold.ttf"):
+            handle = QFontDatabase.addApplicationFont(str(_font_dir() / name))
+            names = QFontDatabase.applicationFontFamilies(handle)
+            if names:
+                _DISPLAY_FAMILY = names[0]
+    return _DISPLAY_FAMILY
 
 
 def control_qss(scale: float = 1.0, nav_padding: float = 18.0) -> str:
@@ -618,8 +637,8 @@ QWidget#Rail {{
     background: {MENU["rail"]};
     border-right: 1px solid {MENU["chrome_line"]};
 }}
-QLabel#RailName {{ color: #f2f4fb; }}
-QLabel#RailVersion {{ color: {MENU["accent"]}; }}
+QLabel#RailName {{ color: #f0e6d2; font-family: "{display_family()}"; }}
+QLabel#RailVersion {{ color: {MENU["ink_3"]}; }}
 QLabel#RailTagline {{ color: {MENU["dim"]}; }}
 QFrame#RailRule {{ background: {MENU["rule"]}; border: 0; }}
 /* The one place a maquette number could not be kept: its rail buttons are
@@ -635,7 +654,7 @@ QPushButton[role="nav"] {{
     background: transparent;
     border: 1px solid transparent;
     border-left: {px(4)} solid transparent;
-    border-radius: {px(10)};
+    border-radius: {px(3)};
     color: {MENU["dim_2"]};
     padding: 0 {px(nav_padding)};
     text-align: left;
@@ -652,12 +671,12 @@ QPushButton[role="nav"]:checked {{
 QFrame[role="card"] {{
     background: {MENU["card"]};
     border: 1px solid {MENU["card_edge"]};
-    border-radius: {px(12)};
+    border-radius: {px(3)};
 }}
 QFrame[role="card_2"] {{
     background: {MENU["card_2"]};
     border: 1px solid {MENU["card_edge_2"]};
-    border-radius: {px(12)};
+    border-radius: {px(3)};
 }}
 /* The home page's two grounds: the wide banner across the top, and the pair of
    panels under it, which the maquette tilts the other way. */
@@ -666,24 +685,24 @@ QFrame[role="hero"] {{
         stop:0 {MENU["hero_a"]}, stop:0.42 {MENU["hero_b"]},
         stop:1 {MENU["hero_c"]});
     border: 1px solid {MENU["hero_edge"]};
-    border-radius: {px(14)};
+    border-radius: {px(3)};
 }}
 QFrame[role="hero_2"] {{
     background: qlineargradient(x1:0, y1:0, x2:0.7, y2:1,
-        stop:0 #161135, stop:1 #0f1226);
+        stop:0 #0b202e, stop:1 #06121e);
     border: 1px solid {MENU["hero_edge"]};
-    border-radius: {px(14)};
+    border-radius: {px(3)};
 }}
 QFrame[role="hero_3"] {{
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0.18,
-        stop:0 {MENU["hero_a"]}, stop:0.55 {MENU["hero_b"]}, stop:1 #161a3a);
+        stop:0 {MENU["hero_a"]}, stop:0.55 {MENU["hero_b"]}, stop:1 #102937);
     border: 1px solid {MENU["hero_edge"]};
-    border-radius: {px(14)};
+    border-radius: {px(3)};
 }}
 QFrame[role="inset"] {{
-    background: rgba(9, 12, 28, 0.55);
+    background: rgba(1, 10, 19, 0.10);
     border: 1px solid {MENU["card_edge_2"]};
-    border-radius: {px(12)};
+    border-radius: {px(3)};
 }}
 QFrame[role="sunken"] {{
     background: {MENU["sunken"]};
@@ -691,11 +710,11 @@ QFrame[role="sunken"] {{
     border-radius: {px(8)};
 }}
 QFrame[role="hr"] {{ background: {MENU["card_edge"]}; border: 0; }}
-QFrame[role="hr_2"] {{ background: #242a48; border: 0; }}
+QFrame[role="hr_2"] {{ background: #514329; border: 0; }}
 
 /* ── type ──────────────────────────────────────────────────────────────── */
 QLabel {{ background: transparent; color: {MENU["ink_3"]}; }}
-QLabel[role="h1"], QLabel[role="h2"], QLabel[role="h3"] {{ color: {MENU["ink"]}; }}
+QLabel[role="h1"], QLabel[role="h2"], QLabel[role="h3"] {{ color: {MENU["ink"]}; font-family: "{display_family()}"; }}
 QLabel[role="body"] {{ color: {MENU["ink_3"]}; }}
 QLabel[role="hint"] {{ color: {MENU["ink_4"]}; }}
 QLabel[role="dim"] {{ color: {MENU["dim"]}; }}
@@ -710,9 +729,9 @@ QLabel[role="field_label"] {{ color: {MENU["ink_2"]}; }}
    styled: QSS has no box-shadow to glow with and no pseudo-element to put it in. */
 QLabel[role="pill"], QLabel[role="pill_ok"], QLabel[role="pill_warn"],
 QLabel[role="pill_bad"] {{
-    background: #0f1428;
+    background: #091c29;
     border: 1px solid {MENU["track"]};
-    border-radius: {px(10)};
+    border-radius: {px(3)};
     color: {MENU["ink_2"]};
     letter-spacing: {px(0.6)};
     padding: 0 {px(22)} 0 {px(45)};
@@ -722,7 +741,7 @@ QLabel[role="pill_bad"] {{
 QPushButton {{
     background: {MENU["sunken"]};
     border: 1px solid {MENU["field_edge"]};
-    border-radius: {px(10)};
+    border-radius: {px(3)};
     color: {MENU["ink_2"]};
     padding: 0 {px(20)};
     text-align: center;
@@ -736,7 +755,7 @@ QPushButton[role="primary"] {{
     color: #ffffff;
 }}
 QPushButton[role="primary"]:hover {{ background: {MENU["accent_deep"]}; }}
-QPushButton[role="primary"]:disabled {{ background: #2a2350; border-color: #2a2350; }}
+QPushButton[role="primary"]:disabled {{ background: #20313a; border-color: #20313a; }}
 QPushButton[role="accent"] {{
     background: {MENU["accent_wash"]};
     border: 1px solid {MENU["accent_btn"]};
@@ -748,7 +767,7 @@ QPushButton[role="accent"]:checked {{
     border-color: {MENU["accent_btn"]};
     color: #ffffff;
 }}
-QPushButton[role="ghost"] {{ background: #0d1224; color: {MENU["ink_3"]}; }}
+QPushButton[role="ghost"] {{ background: #071724; color: {MENU["ink_3"]}; }}
 QPushButton[role="ghost"]:checked {{
     background: {MENU["accent_wash_2"]};
     border-color: {MENU["accent_btn"]};
@@ -767,7 +786,7 @@ QPushButton[role="quiet"] {{
     color: #9aa2c0;
     padding: 0;
 }}
-QPushButton[role="quiet"]:hover {{ background: #151b31; color: {MENU["ink"]}; }}
+QPushButton[role="quiet"]:hover {{ background: #0e303f; color: {MENU["ink"]}; }}
 QPushButton[role="link"] {{
     background: transparent;
     border: 0;

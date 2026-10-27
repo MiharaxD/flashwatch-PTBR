@@ -21,12 +21,18 @@ cooldown). Other displays retain their presentation.
 Champion cards now remain after all cooldowns expire, until the session is reset.
 See [persistence revision and checks](docs/CARTOES-PERSISTENTES.md) and
 [icon appearance](docs/ICONES-DE-RECARGA.md).
-Revised build: `dist/cartoes-persistentes/FlashWatch-PTBR.exe`.
+Current build: `dist/atualizacao-automatica/FlashWatch-PTBR.exe`.
 
-**Windows installer:** `dist/instalador/FlashWatch-PTBR-Setup.msi` installs the
+**Windows installer:** `dist/atualizacao-automatica/instalador/FlashWatch-PTBR-Setup.msi` installs the
 same verified executable for the current user, with Start Menu shortcuts and an
 optional desktop shortcut. See [installation instructions](docs/INSTALADOR.md).
 Build with Python 3.11 on Windows: `python build_installer.py`.
+
+Version 1.0.2 checks this fork's GitHub releases at startup and downloads
+newer executables in the background, verifies SHA-256, then applies on normal
+exit or through Update now. See [automatic updates](docs/ATUALIZACOES-AUTOMATICAS.md).
+Install this version once to enable the new update source. Older builds still
+point to the original project and need this initial manual installation.
 
 Overlay that tracks enemy summoner spell and ultimate cooldowns by reading the
 in-game chat with OCR. No key presses needed during a game.

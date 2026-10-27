@@ -200,6 +200,10 @@ class Application:
         self._pending_release: updater.Release | None = None
         self._update_busy = False
         self._update_percent = -1
+        self._update_staged: Path | None = None
+        self._update_cancel = threading.Event()
+        self._update_check_in_flight = False
+        self._quitting = False
 
         self.assets = RiotAssets(locale=str(self.settings.get("locale", "en_US")))
         self.notifier = Notifier(self.settings)
@@ -462,11 +466,11 @@ class Application:
     # ------------------------------------------------------------------
     # Updates
     # ------------------------------------------------------------------
-    # Nothing here installs anything on its own. The check reports, the banner
-    # offers, and the download only starts once the button is pressed -- a program
-    # that watches the screen during a game is the last thing that should be
-    # replacing its own executable unasked.
+    # Download in the background on start-up. Apply on normal exit, or when the
+    # user explicitly asks to restart now; never interrupt a match automatically.
     def _start_update_check(self, *, manual: bool = False) -> None:
+        if self._quitting:
+            return
         if self._update_busy:
             # An install is already running. Reported rather than ignored: the
             # button disables itself when pressed and something has to put it back.
@@ -481,6 +485,9 @@ class Application:
             if manual:
                 self.control.set_check_result(tr("ui.update_from_source"))
             return
+        if self._update_check_in_flight:
+            return
+        self._update_check_in_flight = True
         threading.Thread(target=self._run_update_check, args=(manual,),
                          name="UpdateCheck", daemon=True).start()
 
@@ -490,6 +497,9 @@ class Application:
         self._invoker.post(lambda: self._on_check_finished(release, manual))
 
     def _on_check_finished(self, release, manual: bool) -> None:
+        self._update_check_in_flight = False
+        if self._quitting:
+            return
         newer = (release is not None
                  and updater.is_newer(release.version, __version__))
 
@@ -501,6 +511,8 @@ class Application:
                 tr("update.available", version=release.version) if newer
                 else tr("ui.update_up_to_date"))
         if not newer:
+            return
+        if self._update_busy or self._update_staged is not None:
             return
         # A version the user passed on stays passed on -- but only that exact
         # one, and only for the automatic check. Asking explicitly overrides it.
@@ -518,10 +530,23 @@ class Application:
             self.tray.showMessage(
                 "Flashwatch", tr("update.available", version=release.version),
                 self.tray.icon(), 8000)
+        self._begin_update_download(apply_now=False)
 
     def _on_install_update(self) -> None:
         release = self._pending_release
         if release is None or self._update_busy or self._exe is None:
+            return
+        if self._update_staged is not None:
+            self._install_downloaded_update(self._exe)
+            return
+        self._begin_update_download(apply_now=True)
+
+    def _begin_update_download(self, *, apply_now: bool) -> None:
+        release = self._pending_release
+        if release is None or self._update_busy or self._exe is None or self._quitting:
+            return
+        if not release.sha256:
+            self._on_update_failed(tr("update.no_hash"))
             return
         if not updater.can_install(self._exe):
             # Program Files, a network share, a read-only stick. Nothing to do
@@ -531,24 +556,43 @@ class Application:
             return
         self._update_busy = True
         self._update_percent = -1
+        self._update_cancel.clear()
         self.control.set_update_progress(0)
-        threading.Thread(target=self._run_update, args=(release, self._exe),
-                         name="UpdateInstall", daemon=True).start()
+        threading.Thread(target=self._run_update, args=(release, self._exe, apply_now),
+                         name="UpdateDownload", daemon=True).start()
 
-    def _run_update(self, release, target) -> None:
-        """Download, verify, swap. Off the UI thread; reports back by posting."""
+    def _run_update(self, release, target, apply_now=False) -> None:
+        """Download and verify off the UI thread, without replacing a live app."""
         try:
             staged = updater.download(release, updater.staged_path(target),
-                                      progress=self._on_update_progress)
-            self._invoker.post(
-                lambda: self.control.set_update_message(tr("update.installing")))
-            updater.install(staged, target)
+                                      progress=self._on_update_progress,
+                                      cancelled=self._update_cancel.is_set)
         except updater.UpdateError as exc:
             log.warning("update to %s failed (%s)", release.version, exc)
             self._invoker.post(lambda message=str(exc):
                                self._on_update_failed(message))
             return
-        self._invoker.post(lambda: self._finish_update(target))
+        self._invoker.post(lambda: self._on_update_downloaded(staged, target, apply_now))
+
+    def _on_update_downloaded(self, staged, target, apply_now) -> None:
+        if self._quitting:
+            return
+        self._update_staged = staged
+        self._update_busy = False
+        self.control.set_update_message(tr("update.ready_exit"), offer=True)
+        if apply_now:
+            self._install_downloaded_update(target)
+
+    def _install_downloaded_update(self, target) -> None:
+        self._update_busy = True
+        self.control.set_update_message(tr("update.installing"))
+        try:
+            updater.install(self._update_staged, target)
+        except updater.UpdateError as exc:
+            self._on_update_failed(str(exc))
+            return
+        self._update_staged = None
+        self._finish_update(target)
 
     def _on_update_progress(self, done: int, total: int) -> None:
         """Called per chunk from the download thread; posts per whole percent.
@@ -565,6 +609,8 @@ class Application:
                            self.control.set_update_progress(value))
 
     def _on_update_failed(self, message: str) -> None:
+        if self._quitting:
+            return
         self._update_busy = False
         self.control.set_update_message(
             f"{tr('update.failed', error=message)} {tr('update.failed_hint')}",
@@ -593,11 +639,17 @@ class Application:
             release.page_url if release is not None else updater.RELEASES_PAGE))
 
     def _on_update_skipped(self) -> None:
+        if self._update_busy:
+            return
         release = self._pending_release
         if release is not None:
             self.settings.set("update_skipped_version", release.version)
             log.info("%s will not be offered again", release.version)
         self.control.hide_update()
+        if self._update_staged is not None:
+            self._update_staged.unlink(missing_ok=True)
+            self._update_staged = None
+        self._pending_release = None
 
     # ------------------------------------------------------------------
     def _bootstrap_assets(self) -> None:
@@ -1410,6 +1462,8 @@ class Application:
         # user has not acted on has to survive changing language.
         if self._pending_release is not None and not self._update_busy:
             self.control.show_update(self._pending_release.version, __version__)
+            if self._update_staged is not None:
+                self.control.set_update_message(tr("update.ready_exit"), offer=True)
         if was_visible:
             if quiet:
                 # Rebuilt, but left where it was: raising it would put it over
@@ -1492,10 +1546,19 @@ class Application:
 
     def quit(self) -> None:
         log.info("shutting down")
+        self._quitting = True
+        self._update_cancel.set()
         if self.worker is not None:
             self.worker.stop()
         self.overlay.save_geometry()
         self.settings.save()
+        if self._update_staged is not None and self._exe is not None:
+            try:
+                updater.install(self._update_staged, self._exe)
+                self._update_staged = None
+                log.info("update applied on exit; new version starts next launch")
+            except updater.UpdateError as exc:
+                log.warning("could not apply update on exit (%s)", exc)
         self.tray.hide()
         # State is saved already. Exit the loop explicitly: the control window
         # normally ignores close events to hide to the tray, which can veto a

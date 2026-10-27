@@ -39,7 +39,7 @@ class BrazilianPackaging(unittest.TestCase):
     def test_updater_requires_localized_asset(self):
         session = Mock()
         payload = {"tag_name": "v1.0.0", "assets": [{
-            "name": "Flashwatch.exe", "browser_download_url": "https://example.invalid/upstream.exe"
+            "name": "Flashwatch.exe", "browser_download_url": f"https://github.com/{updater.OWNER}/{updater.REPO}/releases/download/v1.0.0/{updater.ASSET_NAME}"
         }]}
         session.get.return_value.json.return_value = payload
         self.assertIsNone(updater.fetch_latest(session=session))

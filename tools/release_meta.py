@@ -35,7 +35,7 @@ VERSION_FILE = ROOT / "src" / "version.py"
 NOTES_FILE = ROOT / "RELEASE_NOTES.md"
 
 FIRST_VERSION = (0, 1, 0)
-TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
+TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-ptbr)?$")
 
 # Commits that say nothing to a user reading a release page.
 BORING = re.compile(
@@ -96,6 +96,17 @@ def next_version(current: tuple[int, int, int] | None, bump: str) -> tuple[int, 
     if bump == "minor":
         return (major, minor + 1, 0)
     return (major, minor, patch + 1)
+
+
+def version_floor(current: tuple[int, int, int] | None) -> tuple[int, int, int] | None:
+    """Never mint a release older than a stamped local application build."""
+    match = re.search(r'^__version__ = "(\d+)\.(\d+)\.(\d+)',
+                      VERSION_FILE.read_text("utf-8"), re.MULTILINE)
+    if match:
+        stamped = tuple(int(part) for part in match.groups())
+        if stamped != (0, 0, 0) and (current is None or stamped > current):
+            return stamped
+    return current
 
 
 def format_notes(version: str, commits: list[str], previous: str | None) -> str:
@@ -165,6 +176,7 @@ def main() -> int:
     args = parser.parse_args()
 
     tag, current = latest_tag()
+    current = version_floor(current)
     commits = commits_since(tag)
     bump = decide_bump(commits, args.bump)
     version = ".".join(str(p) for p in next_version(current, bump))

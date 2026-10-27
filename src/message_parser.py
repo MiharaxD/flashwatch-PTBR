@@ -521,15 +521,16 @@ class MessageParser:
                 self._record_near_miss(text)
             return None
         left, right = split
+        cast_spell = self._normalise_pt_flash_cast(right, had_author=had_author)
 
-        if had_author:
+        if had_author or cast_spell != right:
             champion = self._resolve_champion_strict(left)
             resolved = (None if champion is None
-                        else self._resolve_spell_strict(right, champion))
+                        else self._resolve_spell_strict(cast_spell, champion))
         else:
             champion = self._resolve_champion(left)
             resolved = (None if champion is None
-                        else self._resolve_spell(right, champion))
+                        else self._resolve_spell(cast_spell, champion))
 
         if champion is None or resolved is None:
             self._record_near_miss(text)
@@ -549,6 +550,20 @@ class MessageParser:
             raw_line=text,
             signature=signature,
         )
+
+    def _normalise_pt_flash_cast(self, candidate: str, *, had_author: bool) -> str:
+        """The reported PT-BR replacement ping confirms the normal Flash.
+
+        Cast announcements only: do not reinterpret a Hexflash cooldown or a
+        bare ping as the normal Flash. Keep attributed capitalization checks.
+        The F1ash variant is a synthetic OCR tolerance, not client evidence.
+        """
+        if (self.assets.locale != "pt_BR"
+                or (had_author and not _starts_capitalised(candidate))
+                or fold(candidate) not in {"flashhextec", "f1ashhextec"}):
+            return candidate
+        flash = self.assets.spells.get("Flash")
+        return flash.name if flash is not None else candidate
 
     def _parse_wait(self, body: str, raw: str,
                     game_time: int | None) -> SpellEvent | None:

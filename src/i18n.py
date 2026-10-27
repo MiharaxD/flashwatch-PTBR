@@ -221,6 +221,18 @@ STRINGS: dict[str, tuple[str, str, str]] = {
         "Baixando... {percent}%"),
     "update.installing": ("Installation...", "Installing...",
         "Instalando..."),
+    "update.ready_exit": (
+        "Mise a jour telechargee. Elle sera appliquee a la fermeture, ou cliquez sur Mettre a jour maintenant.",
+        "Update downloaded. It will be applied when you quit, or click Update now.",
+        "Atualização baixada. Será aplicada ao sair, ou clique em Atualizar agora."),
+    "update.no_hash": (
+        "La release ne fournit pas de SHA-256 pour verifier le programme.",
+        "The release does not provide a SHA-256 hash to verify the program.",
+        "A release não fornece um hash SHA-256 para conferir o programa."),
+    "update.bad_hash": (
+        "Le SHA-256 du telechargement ne correspond pas a celui de la release.",
+        "The download's SHA-256 does not match the release.",
+        "O SHA-256 do download não corresponde ao da release."),
     "update.restarting": (
         "Mise a jour installee. Flashwatch redemarre.",
         "Update installed. Flashwatch is restarting.",
@@ -854,14 +866,12 @@ STRINGS: dict[str, tuple[str, str, str]] = {
 
     "ui.updates": ("Mises a jour", "Updates",
         "Atualizações"),
-    "ui.update_check": ("Verifier au demarrage", "Check on start-up",
-        "Verificar ao iniciar"),
+    "ui.update_check": ("Verifier et telecharger au demarrage", "Check and download on start-up",
+        "Verificar e baixar ao iniciar"),
     "ui.update_check_tip": (
-        "Une requete a GitHub au lancement. Rien ne se telecharge sans que vous "
-        "cliquiez : la nouvelle version est seulement proposee.",
-        "One request to GitHub at launch. Nothing downloads unless you click: "
-        "the new version is only offered.",
-        "Faz uma consulta ao GitHub ao iniciar. Nada é baixado sem você clicar: a nova versão é apenas oferecida."),
+        "Consulte GitHub au lancement et telecharge une version plus recente en arriere-plan. Elle est appliquee a la fermeture, ou avec Mettre a jour maintenant.",
+        "Checks GitHub at launch and downloads a newer version in the background. Applied when you quit, or with Update now.",
+        "Consulta o GitHub ao abrir e baixa uma versão mais recente em segundo plano. Aplica ao sair do programa ou pelo botão Atualizar agora."),
     "ui.update_installed": ("Version installee :", "Installed version:",
         "Versão instalada:"),
     "ui.update_check_now": ("Verifier maintenant", "Check now",

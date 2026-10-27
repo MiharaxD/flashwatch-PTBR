@@ -1,6 +1,6 @@
 # Instalador Windows — FlashWatch PT-BR
 
-O arquivo `FlashWatch-PTBR-Setup.msi` instala a última build local de cartões persistentes. O executável do aplicativo não é recompilado nem alterado: SHA-256 `2a68302e15d94143d3127e98dad18d8e34916e0364146bbdb7b8079ad1cb7d4a`.
+O arquivo `FlashWatch-PTBR-Setup.msi` instala a build 1.0.2 com cartões persistentes, reconhecimento de `usou Flash Hextec` como Flash normal confirmado e atualizações automáticas pelo GitHub brasileiro. O empacotamento não recompila nem altera o executável: SHA-256 `bb60194556ab1443c6d139c36a9a2e9fd2d9b2101c887c47b5b532aecdc297bf`.
 
 ## Instalar
 
@@ -21,7 +21,7 @@ Os arquivos instalados e os atalhos são removidos. As configurações e o cache
 
 ## Identidade e licenças
 
-Este é um empacotamento local, não uma release oficial do projeto original. A versão **1.0.0 do MSI** identifica o instalador e não altera o `0.0.0-dev` embutido no aplicativo original desta build. O MSI usa uma identidade estável para futuras atualizações desta edição.
+Este é um empacotamento local, não uma release oficial do projeto original. A versão **1.0.2 do MSI** identifica o instalador; o aplicativo também identifica esta build como 1.0.2 para comparar atualizações. O MSI mantém a identidade de atualização desta edição, com uma nova identidade de produto para a revisão.
 
 A licença MIT integral, os avisos da modificação e a licença da fonte Mulish acompanham a instalação. O pacote local não tem assinatura Authenticode nem certificado de editor verificado.
 
@@ -31,10 +31,12 @@ A licença MIT integral, os avisos da modificação e a licença da fonte Mulish
 .\.venv\Scripts\python.exe build_installer.py
 ```
 
-Requer Windows e Python 3.11 apenas na máquina de empacotamento. O script usa a biblioteca nativa `msilib` e o Windows Installer, sem ferramentas de terceiros. Saída: `dist/instalador/FlashWatch-PTBR-Setup.msi`.
+Requer Windows e Python 3.11 apenas na máquina de empacotamento. O script usa a biblioteca nativa `msilib` e o Windows Installer, sem ferramentas de terceiros. Saída: `dist/atualizacao-automatica/instalador/FlashWatch-PTBR-Setup.msi`.
 
 O executável validado é conferido por hash antes de empacotar. A lista explícita de arquivos inclui o programa, as licenças e a documentação; a pasta `assets` não é copiada. O pacote não contém ações personalizadas para iniciar programas.
 
-Os resultados específicos do instalador são entregues em `dist/instalador/VALIDACAO-INSTALADOR.md`. A build do aplicativo preserva os resultados anteriores de 35/35 suítes; sua execução sobre o LoL continua deliberadamente fora desta validação.
+Os resultados desta revisão são documentados em `docs/ATUALIZACOES-AUTOMATICAS.md`, com **37/37 suítes** aprovadas. O MSI é conferido com extração, hashes e planejamento nativo; instalação/desinstalação completas e execução sobre o LoL continuam fora desta validação. A revisão é local e não altera automaticamente a release pública anterior.
+
+Depois de instalar esta build uma vez, ela verifica o GitHub ao abrir e baixa versões mais novas em segundo plano. A atualização é aplicada ao sair pelo menu da bandeja, ou pelo botão Atualizar agora. Configurações e cache são mantidos; não é preciso instalar o MSI a cada atualização. A preferência existente de desativar a checagem é respeitada.
 
 Referências técnicas: [Windows Installer por usuário](https://learn.microsoft.com/en-us/windows/win32/msi/authoring-packages-without-the-uac-dialog-box), [biblioteca msilib do Python 3.11](https://docs.python.org/3.11/library/msilib.html) e [extração administrativa do MSI](https://learn.microsoft.com/en-us/windows/win32/msi/administrative-installation).

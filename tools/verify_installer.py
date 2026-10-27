@@ -10,7 +10,6 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import msilib
 
 ROOT = Path(__file__).resolve().parents[1]
-MSI = ROOT / "dist/instalador/FlashWatch-PTBR-Setup.msi"
 WORK = ROOT / "build/installer"
 
 
@@ -18,13 +17,36 @@ def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def native_plan(installer):
+    """Costing and launch conditions only: never execute INSTALL actions."""
+    api = ctypes.WinDLL("msi")
+    api.MsiSetInternalUI.argtypes = [ctypes.c_uint, ctypes.c_void_p]
+    api.MsiSetInternalUI(2, None)
+    api.MsiOpenPackageExW.argtypes = [ctypes.c_wchar_p, ctypes.c_uint, ctypes.POINTER(ctypes.c_uint)]
+    api.MsiDoActionW.argtypes = [ctypes.c_uint, ctypes.c_wchar_p]
+    api.MsiSetPropertyW.argtypes = [ctypes.c_uint, ctypes.c_wchar_p, ctypes.c_wchar_p]
+    api.MsiCloseHandle.argtypes = [ctypes.c_uint]
+    handle = ctypes.c_uint()
+    results = {"OpenPackage": api.MsiOpenPackageExW(str(installer), 1, ctypes.byref(handle))}
+    if results["OpenPackage"] == 0:
+        try:
+            api.MsiSetPropertyW(handle.value, "ACTION", "INSTALL")
+            api.MsiSetPropertyW(handle.value, "INSTALLDIR", str(WORK / "cost-only"))
+            for action in ("CostInitialize", "FileCost", "CostFinalize", "LaunchConditions"):
+                results[action] = api.MsiDoActionW(handle.value, action)
+        finally:
+            api.MsiCloseHandle(handle.value)
+    return results
+
+
 def main():
     manifest = json.loads((WORK / "manifest.json").read_text("utf-8"))
+    MSI = Path(manifest["installer"])
     checks = {"installer_hash": digest(MSI) == manifest["sha256"]}
     api = ctypes.WinDLL("msi")
     api.MsiVerifyPackageW.argtypes = [ctypes.c_wchar_p]
     checks["windows_recognizes_msi"] = api.MsiVerifyPackageW(str(MSI)) == 0
-    destination = WORK / "payload-final"
+    destination = WORK / ("payload-" + manifest["sha256"][:12])
     destination.mkdir(exist_ok=True)
     archive_tool = Path(r"C:\Program Files\7-Zip\7z.exe")
     with (WORK / "archive-check.log").open("w", encoding="utf-8") as log:
@@ -78,14 +100,14 @@ def main():
     for table in ("InstallUISequence", "InstallExecuteSequence"):
         actions = dict((a, int(n)) for a, n in rows(table, ["Action", "Sequence"]))
         checks["upgrade_detection_order:" + table] = actions["FindRelatedProducts"] < actions["LaunchConditions"]
-    planning = json.loads((WORK / "native-costing.json").read_text("utf-8"))
-    checks["native_installation_planning"] = planning.get("code") == 0 and all(
-        name + " 0" in planning["output"] for name in ("OpenPackage", "CostInitialize", "FileCost", "CostFinalize", "LaunchConditions"))
+    planning = native_plan(MSI)
+    (WORK / "native-costing.json").write_text(json.dumps(planning, indent=2), "utf-8")
+    checks["native_installation_planning"] = len(planning) == 5 and all(code == 0 for code in planning.values())
     checks["hash_still_stable"] = digest(MSI) == manifest["sha256"]
     report = dict(installer=str(MSI), sha256=manifest["sha256"], bytes=MSI.stat().st_size,
                   application_sha256=manifest["application_sha256"], checks=checks,
                   passed=all(checks.values()), full_installation_tested=False,
-                  limitation="msiexec /a timed out before producing a log; archive extraction and native planning succeeded. No FlashWatch or LoL execution.")
+                  limitation="No full installation/uninstallation test. Archive extraction and native planning only; no FlashWatch or LoL execution.")
     (WORK / "verification.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), "utf-8")
     print(f"{sum(checks.values())}/{len(checks)} verificações aprovadas")
     for name, ok in checks.items():

@@ -20,7 +20,7 @@ import msilib
 from msilib import schema, sequence
 
 ROOT = Path(__file__).resolve().parent
-APP_SHA256 = "2a68302e15d94143d3127e98dad18d8e34916e0364146bbdb7b8079ad1cb7d4a"
+APP_SHA256 = "bb60194556ab1443c6d139c36a9a2e9fd2d9b2101c887c47b5b532aecdc297bf"
 UPGRADE_CODE = "{42E9D8B6-729D-4D25-8CD8-47326AD6D016}"
 REG_KEY = r"Software\FlashWatchPTBR\Installer"
 
@@ -115,7 +115,7 @@ def build(version: str, output: Path) -> Path:
     major, minor, patch = map(int, version.split("."))
     if major > 255 or minor > 255 or patch > 65535:
         raise ValueError("Versão fora dos limites do Windows Installer")
-    executable = ROOT / "dist/cartoes-persistentes/FlashWatch-PTBR.exe"
+    executable = ROOT / "dist/atualizacao-automatica/FlashWatch-PTBR.exe"
     if hashlib.sha256(executable.read_bytes()).hexdigest() != APP_SHA256:
         raise ValueError("O executável não corresponde à última build validada")
     output.mkdir(parents=True, exist_ok=True)
@@ -216,7 +216,7 @@ def build(version: str, output: Path) -> Path:
 
 if __name__ == "__main__":
     cli = argparse.ArgumentParser(description=__doc__)
-    cli.add_argument("--version", default="1.0.0", help="Versão do pacote MSI; não altera o aplicativo")
-    cli.add_argument("--out", type=Path, default=ROOT / "dist/instalador")
+    cli.add_argument("--version", default="1.0.2", help="Versão do pacote MSI; não altera o aplicativo")
+    cli.add_argument("--out", type=Path, default=ROOT / "dist/atualizacao-automatica/instalador")
     args = cli.parse_args()
     build(args.version, args.out.resolve())

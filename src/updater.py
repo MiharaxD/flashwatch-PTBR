@@ -33,20 +33,22 @@ and they are testable only if importing this does not need a running application
 from __future__ import annotations
 
 import logging
+import hashlib
 import re
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
+from urllib.parse import quote
 
 import requests
 from i18n import tr
 
 log = logging.getLogger(__name__)
 
-OWNER = "abenfraj"
-REPO = "flashwatch"
+OWNER = "MiharaxD"
+REPO = "flashwatch-PTBR"
 # The name the release workflow attaches, and the name the running copy has.
 # Never replace the localized build with an upstream binary without PT-BR.
 # A publisher must attach this exact name; lookup/swap/rollback stay unchanged.
@@ -89,6 +91,7 @@ class Release:
     download_url: str
     size: int
     page_url: str
+    sha256: str = ""
 
 
 def parse_version(text: str) -> tuple[int, int, int] | None:
@@ -162,7 +165,7 @@ def fetch_latest(*, session: requests.Session | None = None) -> Release | None:
         if own:
             session.close()
 
-    if not isinstance(payload, dict) or payload.get("draft"):
+    if not isinstance(payload, dict) or payload.get("draft") or payload.get("prerelease"):
         return None
 
     tag = str(payload.get("tag_name") or "")
@@ -171,12 +174,27 @@ def fetch_latest(*, session: requests.Session | None = None) -> Release | None:
         log.info("latest release has no usable version (%r)", tag)
         return None
 
-    asset = next((a for a in payload.get("assets") or []
-                  if str(a.get("name")) == ASSET_NAME), None)
+    assets = payload.get("assets")
+    if not isinstance(assets, list):
+        return None
+    asset = next((a for a in assets
+                  if isinstance(a, dict) and str(a.get("name")) == ASSET_NAME), None)
     if asset is None or not asset.get("browser_download_url"):
         # A release with no binary is nothing the user can install; pointing them
         # at it would be worse than staying quiet.
         log.warning("release %s has no %s asset", tag, ASSET_NAME)
+        return None
+
+    expected_url = f"https://github.com/{OWNER}/{REPO}/releases/download/{quote(tag, safe='')}/{ASSET_NAME}"
+    if asset["browser_download_url"] != expected_url:
+        log.warning("release %s has an unexpected download URL", tag)
+        return None
+    try:
+        size = int(asset.get("size") or 0)
+    except (ValueError, TypeError):
+        return None
+    digest = str(asset.get("digest") or "")
+    if digest and not re.fullmatch(r"sha256:[0-9a-fA-F]{64}", digest):
         return None
 
     return Release(
@@ -184,8 +202,9 @@ def fetch_latest(*, session: requests.Session | None = None) -> Release | None:
         tag=tag,
         notes=str(payload.get("body") or ""),
         download_url=str(asset["browser_download_url"]),
-        size=int(asset.get("size") or 0),
+        size=size,
         page_url=str(payload.get("html_url") or RELEASES_PAGE),
+        sha256=digest.removeprefix("sha256:").lower(),
     )
 
 
@@ -252,6 +271,7 @@ def download(release: Release, destination: Path,
     own = session is None
     session = session or _session()
     partial = destination.with_name(destination.name + ".part")
+    digest = hashlib.sha256()
     try:
         partial.unlink(missing_ok=True)
         with session.get(release.download_url, stream=True,
@@ -266,6 +286,7 @@ def download(release: Release, destination: Path,
                     if not chunk:
                         continue
                     handle.write(chunk)
+                    digest.update(chunk)
                     done += len(chunk)
                     if progress is not None:
                         progress(done, total)
@@ -283,11 +304,15 @@ def download(release: Release, destination: Path,
             session.close()
 
     try:
+        if cancelled is not None and cancelled():
+            raise UpdateError(tr("update.cancelled"))
         size = partial.stat().st_size
         if release.size and size != release.size:
             raise UpdateError(tr("update.bad_size", expected=release.size, actual=size))
         if size < MIN_PLAUSIBLE_BYTES:
             raise UpdateError(tr("update.too_small", size=size))
+        if release.sha256 and digest.hexdigest() != release.sha256:
+            raise UpdateError(tr("update.bad_hash"))
         with open(partial, "rb") as handle:
             if handle.read(2) != b"MZ":
                 raise UpdateError(tr("update.not_executable"))

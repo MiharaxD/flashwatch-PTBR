@@ -105,7 +105,7 @@ def release_payload(tag="v0.2.0", *, asset_name=updater.ASSET_NAME, size=99,
         "body": "## Nouveautes\n- quelque chose",
         "html_url": f"https://example.invalid/{tag}",
         "assets": [{"name": asset_name, "size": size,
-                    "browser_download_url": f"https://example.invalid/{tag}/exe"}],
+                    "browser_download_url": f"https://github.com/{updater.OWNER}/{updater.REPO}/releases/download/{tag}/{updater.ASSET_NAME}"}],
     }
 
 
@@ -115,7 +115,7 @@ found = updater.check("0.1.9", session=session)
 check("a newer release is offered", found is not None and found.version == "0.2.0",
       found.version if found else "nothing")
 check("  its notes come along", found is not None and "Nouveautes" in found.notes)
-check("  and the asset url", found is not None and found.download_url.endswith("/exe"))
+check("  and the asset url", found is not None and found.download_url.endswith("/" + updater.ASSET_NAME))
 
 session = FakeSession(FakeResponse(payload=release_payload("v0.1.9")))
 check("the version already installed is not offered",

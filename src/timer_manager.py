@@ -28,6 +28,7 @@ import time
 from dataclasses import dataclass, field, replace
 
 from cooldowns import format_remaining, get_cooldown
+from i18n import tr
 from message_parser import MAX_CALL_LEAD, SpellEvent
 from riot_assets import RiotAssets
 from roles import ROLE_ORDER, ROLES, assign_slots
@@ -130,7 +131,7 @@ class ActiveTimer:
         # reading whether or not the cast was ever confirmed, and a decorated
         # READY reads as a state of its own.
         if text == "READY":
-            return text
+            return tr("overlay.ready")
         if self.approximate:
             text = f"~{text}"
         return text
@@ -155,6 +156,9 @@ class TimerManager:
         self.assets = assets
         self.settings = settings
         self._timers: dict[tuple[str, str], ActiveTimer] = {}
+        # Display-only records for fixed cards after the live timers are purged.
+        # Never used for dedupe, cooldown calculations, counts or notifications.
+        self._finished_cards: dict[tuple[str, str], ActiveTimer] = {}
         self._seen: set[str] = set()
         # Keyed by certainty as well as by spell: an uncertain sighting must not
         # sit in this window blocking the confirmed line that follows it.
@@ -185,6 +189,7 @@ class TimerManager:
         if self._timers or self._seen:
             log.info("resetting timers (%s)", reason or "unspecified")
         self._timers.clear()
+        self._finished_cards.clear()
         self._seen.clear()
         self._last_blind.clear()
         # Roles go too, hand-set ones included. They describe *this* game's enemy
@@ -646,6 +651,7 @@ class TimerManager:
             started_at=now - (full - remaining),
             approximate=False,          # the game stated it
             stated=True,
+            uncertain=not event.certain,
             role=self._role_for(event),
             ready_at_game=ready_at_game,
         )
@@ -744,6 +750,9 @@ class TimerManager:
         for timer in self._timers.values():
             if timer.champion_id == champion_id:
                 timer.role = role
+        for timer in self._finished_cards.values():
+            if timer.champion_id == champion_id:
+                timer.role = role
 
     def set_roles(self, slots: dict[int, str], *, source: str = "") -> int:
         """Record the roles a reader found, keyed by position in the team list.
@@ -829,7 +838,7 @@ class TimerManager:
         stale = [key for key, timer in self._timers.items()
                  if self._overdue(timer, now) >= linger]
         for key in stale:
-            del self._timers[key]
+            self._finished_cards[key] = self._timers.pop(key)
         return len(stale)
 
     def tick(self) -> list[Notification]:
@@ -855,15 +864,21 @@ class TimerManager:
         self.purge_finished(now)
         return notifications
 
-    def snapshot(self) -> list[ActiveTimer]:
-        """Timers for display, ordered for the overlay."""
+    def snapshot(self, *, keep_ready: bool = False) -> list[ActiveTimer]:
+        """Timers for display; fixed cards may keep finished spell records."""
         now = time.monotonic()
-        timers = list(self._timers.values())
+        if keep_ready:
+            # A new cast always wins over its previous finished record. The
+            # archive contains only ready timers and stays outside tick().
+            timers = list((self._finished_cards | self._timers).values())
+        else:
+            timers = list(self._timers.values())
         # Filtered as well as purged in tick(): a snapshot can be taken between
         # ticks, right after an event, and must not show a stale READY.
         linger = self._ready_linger()
-        timers = [t for t in timers if self._overdue(t, now) < linger]
-        if self.settings.get("hide_ready_entries"):
+        if not keep_ready:
+            timers = [t for t in timers if self._overdue(t, now) < linger]
+        if not keep_ready and self.settings.get("hide_ready_entries"):
             timers = [t for t in timers if not t.is_ready(now)]
         if self.settings.get("sort_by_role"):
             timers.sort(key=lambda t: (ROLE_ORDER.get(t.role, len(ROLES)),
@@ -976,6 +991,7 @@ class TimerManager:
         for key in keys:
             if self._timers.pop(key, None) is not None:
                 removed += 1
+            self._finished_cards.pop(key, None)
         return removed
 
     def active_count(self) -> int:

@@ -1,7 +1,7 @@
 """Package the application into something you can send to someone.
 
-    .venv\\Scripts\\python build.py           -> dist/Flashwatch.exe   (one file)
-    .venv\\Scripts\\python build.py --dir     -> dist/Flashwatch/      (a folder)
+    .venv\\Scripts\\python build.py           -> dist/FlashWatch-PTBR.exe   (one file)
+    .venv\\Scripts\\python build.py --dir     -> dist/FlashWatch-PTBR/      (a folder)
 
 One file is what you want for sending: the recipient downloads a single .exe and
 double-clicks it. The cost is start-up time -- Windows has to unpack the bundle
@@ -17,12 +17,13 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 ENTRY = ROOT / "src" / "main.py"
 ICON = ROOT / "build" / "flashwatch.ico"
-NAME = "Flashwatch"
+NAME = "FlashWatch-PTBR"
 
 # Files PyInstaller collects that this application never opens. Excluding a
 # *module* is not enough for these: they are DLLs and data pulled in by the
@@ -183,7 +184,9 @@ def write_spec(one_file: bool, icon: Path | None,
         # font, and the two illustrations the control window's home page puts
         # behind its headline (75 KB the pair -- everything else in this window
         # is drawn).
-        own_datas=[(str(path), "resources/fonts")
+        own_datas=[(str(ROOT / "LICENSE"), "."),
+                   (str(ROOT / "resources/fonts/Mulish-OFL.txt"), "resources/fonts")]
+        + [(str(path), "resources/fonts")
                    for path in sorted((ROOT / "resources" / "fonts").glob("*.ttf"))]
         + [(str(path), "resources/art")
            for path in sorted((ROOT / "resources" / "art").glob("*.jpg"))]
@@ -280,6 +283,25 @@ def target_is_locked(target: Path) -> bool:
         return True
 
 
+def build_environment() -> dict[str, str]:
+    """Do not resolve DLLs from unrelated tools in the developer's PATH.
+
+    PyInstaller otherwise picked Poppler's ICU on this host instead of the
+    Windows ICU required by Qt, producing a build that passed analysis but
+    failed to import QtCore. Keep the active Python and Windows directories;
+    package-specific DLLs are discovered by their existing hooks.
+    """
+    env = dict(os.environ)
+    windows = Path(env.get("SystemRoot", r"C:\Windows"))
+    env["PATH"] = os.pathsep.join(dict.fromkeys([
+        str(Path(sys.executable).parent), sys.base_prefix,
+        str(windows / "System32"), str(windows),
+    ]))
+    env.pop("PYTHONPATH", None)
+    env.pop("PYTHONHOME", None)
+    return env
+
+
 def main() -> int:
     one_file = "--dir" not in sys.argv
 
@@ -325,7 +347,7 @@ def main() -> int:
     ]
 
     print(" ".join(command), "\n")
-    result = subprocess.run(command, cwd=ROOT)
+    result = subprocess.run(command, cwd=ROOT, env=build_environment())
     if result.returncode != 0:
         return result.returncode
 

@@ -34,12 +34,13 @@ ROLE_ORDER[""] = len(ROLES)
 # role would make "top tp 9:50" resolve the spell as the target.
 ROLE_ALIASES: dict[str, str] = {}
 for _role, _words in (
-    ("TOP", ("top", "toplane", "toplaner", "haut")),
-    ("JUNGLE", ("jungle", "jungler", "jgl", "jng", "jung", "jungl", "jg")),
-    ("MID", ("mid", "midlane", "midlaner", "middle", "milieu")),
+    ("TOP", ("top", "toplane", "toplaner", "haut", "topo")),
+    ("JUNGLE", ("jungle", "jungler", "jgl", "jng", "jung", "jungl", "jg",
+                "selva", "caçador")),
+    ("MID", ("mid", "midlane", "midlaner", "middle", "milieu", "meio")),
     ("ADC", ("adc", "bot", "botlane", "bottom", "botlaner", "carry", "adcarry",
-             "ad")),
-    ("SUPPORT", ("support", "supp", "sup", "soutien", "supporter")),
+             "ad", "atirador")),
+    ("SUPPORT", ("support", "supp", "sup", "soutien", "supporter", "suporte")),
 ):
     for _word in _words:
         ROLE_ALIASES[fold(_word)] = _role

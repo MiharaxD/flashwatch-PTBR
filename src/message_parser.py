@@ -102,6 +102,10 @@ SYSTEM_VERBS: tuple[str, ...] = (
     # a cast announcement is only trusted without an author prefix, and the split
     # still has to yield a champion on the left and a spell on the right.
     "used",           # en_US: "Ahri used Flash"
+    # Riot's PT-BR patch 25.17 notes explicitly show "Diana usou Flash".
+    # See docs/PTBR.md for evidence and the remaining screenshot limitations.
+    "usou",
+    "us0u",           # synthetic OCR confusion: o -> 0, same wording
 )
 
 # Articles and possessives that may sit between the verb and the spell name.
@@ -140,16 +144,21 @@ AUTHOR_PREFIX_RE = re.compile(r"^\s*[^:]{1,40}:\s*")
 # (read as seconds), matched, and was then discarded as an implausible 0. Ziggs
 # and Miss Fortune broke the same way.
 _SEC_WORD = r"[s5S$]ec(?:onde?s?|ond?s?)?"
+_PT_SEC_WORD = r"[s5S$]eg(?:undos?)?"
+# These two wait words are hypotheses, NOT observed Brazilian client messages.
+# Only the existing rigid target/spell/count shape is accepted. Such events keep
+# the existing uncertainty chip until real screenshots validate the wording.
+PT_WAIT_WORDS = r"aguarde|espere"
 WAIT_RE = re.compile(
-    rf"\b(?:attendez|attendre|wait)\s+(?P<middle>.{{2,60}}?)"
+    rf"\b(?:attendez|attendre|wait|{PT_WAIT_WORDS})\s+(?P<middle>.{{2,60}}?)"
     rf"(?:"
     # Dashed form: "- 245 sec." or, because a dash is already strong context,
     # a bare "- 245 s" where OCR clipped the unit.
-    rf"[\s:]*[-–—]\s*(?P<secs_dash>{_DIGIT_LOOSE}{{1,4}})\s*(?:{_SEC_WORD}|s)\b"
+    rf"[\s:]*[-–—]\s*(?P<secs_dash>{_DIGIT_LOOSE}{{1,4}})\s*(?:{_SEC_WORD}|{_PT_SEC_WORD}|s)\b"
     rf"|"
     # No dash: the unit must contain "ec", otherwise a lone "s" inside a
     # champion's name passes for seconds.
-    rf"[\s:]+(?P<secs_plain>{_DIGIT_LOOSE}{{1,4}})\s*{_SEC_WORD}\b"
+    rf"[\s:]+(?P<secs_plain>{_DIGIT_LOOSE}{{1,4}})\s*(?:{_SEC_WORD}|{_PT_SEC_WORD})\b"
     rf")",
     re.IGNORECASE,
 )
@@ -549,6 +558,12 @@ class MessageParser:
         if match is None:
             return None
 
+        pt_hypothesis = bool(re.match(rf"(?:{PT_WAIT_WORDS})\b", match.group(), re.I))
+        if pt_hypothesis and (
+                self.assets.locale != "pt_BR" or match.start() != 0
+                or plain[match.end():].strip(" .!")):
+            return None
+
         raw_secs = match.group("secs_dash") or match.group("secs_plain")
         try:
             remaining = int(raw_secs.translate(DIGIT_FIXES))
@@ -564,7 +579,7 @@ class MessageParser:
             return None
 
         middle = match.group("middle").strip(" -:.,")
-        resolved = self._split_target_and_spell(middle)
+        resolved = self._split_target_and_spell(middle, strict=pt_hypothesis)
         if resolved is None:
             self._record_near_miss(raw)
             return None
@@ -581,6 +596,7 @@ class MessageParser:
             raw_line=raw,
             signature=signature,
             remaining_seconds=remaining,
+            certain=not pt_hypothesis,
         )
 
     def _split_target_and_spell(self, middle: str, *, strict: bool = False):
@@ -887,6 +903,13 @@ class MessageParser:
             at = folded.find(verb)
             if at == -1:
                 continue
+            if verb in {"usou", "us0u"}:
+                # A short Portuguese verb must be a word. Do not read "abusou"
+                # or "recusou" as a cast; preserve the other locales' matching.
+                begin, end = positions[at], positions[at + len(verb) - 1] + 1
+                if ((begin and plain[begin - 1].isalnum())
+                        or (end < len(plain) and plain[end].isalnum())):
+                    continue
             # Prefer the longest verb match at the earliest position.
             if best is None or len(verb) > best[1]:
                 best = (at, len(verb))
@@ -967,7 +990,16 @@ class MessageParser:
     def _resolve_spell(self, candidate: str,
                        champion: ChampionInfo) -> tuple[str, str, str] | None:
         """Resolve the spell half into ``(kind, spell_key, display_name)``."""
-        folded = fold(self._strip_determiners(candidate))
+        shortcut = self._resolve_pt_ultimate_key(candidate, champion)
+        if shortcut is not None:
+            return shortcut
+        # An article may be part of Riot's actual PT-BR name ("A Caixa",
+        # "A Maldição da Múmia Triste"). Preserve that name before treating
+        # leading words as somebody's possessive/article.
+        folded = fold(candidate)
+        if not (self.assets.locale == "pt_BR" and champion.ultimate
+                and folded == fold(champion.ultimate.name)):
+            folded = fold(self._strip_determiners(candidate))
         if not folded:
             return None
 
@@ -1015,8 +1047,13 @@ class MessageParser:
         The generic "son ultime" wording is likewise refused here: the game names
         the ability, so an unnamed ult on an attributed line is not evidence.
         """
+        shortcut = self._resolve_pt_ultimate_key(candidate, champion)
+        if shortcut is not None:
+            return shortcut
         words = candidate.replace("'", " ").split()
-        if not words or fold(words[0]) in DETERMINERS:
+        official_pt_ult = (self.assets.locale == "pt_BR" and champion.ultimate
+                           and fold(candidate) == fold(champion.ultimate.name))
+        if not words or (fold(words[0]) in DETERMINERS and not official_pt_ult):
             return None
         if not _starts_capitalised(candidate):
             return None
@@ -1042,6 +1079,21 @@ class MessageParser:
                     or ratio >= MIN_SPELL_RATIO):
                 return "ultimate", "ULT", ult.name
 
+        return None
+
+    def _resolve_pt_ultimate_key(self, candidate: str,
+                                champion: ChampionInfo) -> tuple[str, str, str] | None:
+        """PT-BR pings name the ultimate by its key, not its ability name.
+
+        `Nasus R` is visible in the user's game capture; `Nasus usou R` is
+        reported by the user. Require the exact uppercase key, a resolved target
+        and actual ultimate data. Never fuzzy-match a single letter or infer the
+        target from the author's champion in `Espere por R - 33s`.
+        """
+        if self.assets.locale == "pt_BR" and candidate.strip() == "R":
+            ult = champion.ultimate
+            if ult is not None and ult.name:
+                return "ultimate", "ULT", ult.name
         return None
 
     def champion_named(self, text: str) -> str | None:

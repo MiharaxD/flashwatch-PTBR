@@ -29,6 +29,7 @@ from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetrics, QPainter,
 from PySide6.QtWidgets import QWidget
 
 from i18n import tr
+from cooldowns import SPELL_NAMES
 from timer_manager import ActiveTimer
 
 log = logging.getLogger(__name__)
@@ -71,7 +72,7 @@ LAYOUT_BAR_V = "bar_vertical"
 # clear of the minimap and the item shop).
 LAYOUT_DEFAULTS = {
     LAYOUT_BAR: {"fraction": 0.30, "height": 58, "align": "top"},
-    LAYOUT_CARDS: {"fraction": 0.26, "height": 80, "align": "top"},
+    LAYOUT_CARDS: {"fraction": 0.56, "height": 128, "align": "top"},
     LAYOUT_LIST: {"fraction": 0.13, "height": 300, "align": "left"},
     # Narrow and tall, down the left side: a vertical track is the same strip
     # turned on its end, and the countdowns sit to the right of the portraits.
@@ -94,11 +95,9 @@ BAR_IDLE_ALPHA = 0.18
 # portrait stays recognisable -- it is the thing you identify at a glance.
 BADGE_OVERLAP = 0.26
 
-# Cards layout: the portrait is bigger than on the track because it carries the
-# progress ring around it, and that ring is the readout.
-CARD_PORTRAIT = 30
-CARD_BADGE = 18
-CARD_RING = 2.4
+# Fixed cards: one champion portrait, three spell icons and times underneath.
+CARD_PORTRAIT = 40
+CARD_BADGE = 24
 CARD_GAP = 5
 CARD_PAD = 6
 
@@ -440,22 +439,49 @@ class BarMarker(NamedTuple):
     text: QRectF
 
 
-class CardSlot(NamedTuple):
-    """One cooldown's card in the fixed-cards display.
-
-    ``rect`` is the whole card, which is the box that must never meet another
-    card's; the three inner rectangles are where its parts are drawn.
-    """
-
-    timer: ActiveTimer
-    rect: QRect
-    portrait: QRect
+class CardSpellSlot(NamedTuple):
+    timer: ActiveTimer | None
     badge: QRect
     text: QRect
 
 
+class CardSlot(NamedTuple):
+    """One champion portrait and its ultimate/summoner columns."""
+
+    timer: ActiveTimer          # representative; does not create a new timer
+    rect: QRect
+    portrait: QRect
+    spells: tuple[CardSpellSlot, ...]
+
+
 def _colour(theme: dict, key: str) -> QColor:
     return QColor(*theme.get(key, (255, 255, 255, 255)))
+
+
+def paint_card_cooldown_mask(painter: QPainter, rect, scale: float) -> None:
+    """Translucent grey and an X, confined to a card's spell icon."""
+    bounds = QRectF(rect)
+    clip = QPainterPath()
+    clip.addEllipse(bounds)
+    cx, cy = bounds.center().x(), bounds.center().y()
+    half = min(bounds.width(), bounds.height()) * .22
+    cross = QPainterPath()
+    cross.moveTo(cx - half, cy - half)
+    cross.lineTo(cx + half, cy + half)
+    cross.moveTo(cx - half, cy + half)
+    cross.lineTo(cx + half, cy - half)
+    painter.save()
+    painter.setClipPath(clip, Qt.IntersectClip)
+    painter.fillPath(clip, QColor(105, 110, 118, 82))
+    painter.setBrush(Qt.NoBrush)
+    width = max(.8, 1.4 * scale)
+    painter.setPen(QPen(QColor(0, 0, 0, 185), width + 1.4 * scale,
+                        Qt.SolidLine, Qt.RoundCap))
+    painter.drawPath(cross)
+    painter.setPen(QPen(QColor(242, 244, 248, 245), width,
+                        Qt.SolidLine, Qt.RoundCap))
+    painter.drawPath(cross)
+    painter.restore()
 
 
 class IconCache:
@@ -678,6 +704,8 @@ class Overlay(QWidget):
         """
         set_countdown_style(str(self.settings.get("timer_font", FACE_AUTO)),
                             self.settings.get("timer_font_scale", 1.0))
+        if self.current_layout() == LAYOUT_CARDS:
+            self._apply_minimum_height(float(self.settings.get("overlay_scale", 1.0)))
 
     def sync_layout(self) -> None:
         """Follow a change of display, carrying each one's position with it.
@@ -690,7 +718,11 @@ class Overlay(QWidget):
         if wanted == self._layout:
             return
         self.save_geometry(layout=self._layout)
+        if LAYOUT_CARDS in (self._layout, wanted):
+            self.setMinimumSize(MIN_WIDTH, MIN_HEIGHT)
         self._layout = wanted
+        if wanted == LAYOUT_CARDS:
+            self._apply_minimum_height(float(self.settings.get("overlay_scale", 1.0)))
         self.restore_geometry()
         self._sync_glide_timer()
         self.update()
@@ -842,6 +874,9 @@ class Overlay(QWidget):
             return
         had_timers = bool(self._timers)
         self._timers = timers
+        if self.current_layout() == LAYOUT_CARDS:
+            self._apply_minimum_height(max(0.6, min(2.0, float(
+                self.settings.get("overlay_scale", 1.0)))))
         if bool(timers) != had_timers:
             # Gaining or losing every timer can flip the auto-hide, e.g. the
             # preview shown with League closed.
@@ -1334,7 +1369,9 @@ class Overlay(QWidget):
             # numbers, rather than numbers outside the panel. The minimum height
             # above normally makes this unreachable; it is here because "nothing
             # is ever drawn outside the frame" should not depend on that.
-            if marker.text.height() >= 8:
+            # Compare with the chosen font, not an arbitrary pixel floor: the
+            # default 0.5x font can be only 6–7px tall and still fit in full.
+            if marker.text.height() >= metrics["text"]:
                 self._paint_countdown(painter, theme, marker.text,
                                       timer.display(), colour, time_font, align,
                                       uncertain=timer.uncertain, scale=scale)
@@ -1355,6 +1392,11 @@ class Overlay(QWidget):
         already has does nothing, and the value only changes when the scale or
         the display does.
         """
+        if self.current_layout() == LAYOUT_CARDS:
+            metrics = self._card_metrics(scale)
+            self.setMinimumWidth(max(MIN_WIDTH, metrics["width"] + 2 * metrics["pad"]))
+            self.setMinimumHeight(max(MIN_HEIGHT, metrics["height"] + 2 * metrics["pad"]))
+            return
         if self.current_layout() != LAYOUT_BAR or self.bar_is_vertical():
             self.setMinimumHeight(MIN_HEIGHT)
             return
@@ -1578,34 +1620,74 @@ class Overlay(QWidget):
     def _card_font(scale: float) -> QFont:
         return countdown_font(9 * scale)
 
+    def _card_groups(self) -> list[tuple[ActiveTimer, tuple[ActiveTimer | None, ...]]]:
+        """Group existing timers only; empty slots carry no timer state.
+
+        Keep the snapshot's champion order (including role sorting). Reserve R
+        on the left, Flash in the middle, then other summoners in canonical order,
+        independent of remaining time. These are not the player's D/F bindings.
+        Spell swaps can leave more than two summoner timers: keep those too.
+        """
+        groups: dict[str, list[ActiveTimer]] = {}
+        for timer in self._timers:
+            groups.setdefault(timer.champion_id, []).append(timer)
+        order = {name: index for index, name in enumerate(SPELL_NAMES)}
+        result = []
+        for timers in groups.values():
+            ult = next((t for t in timers if t.kind == "ultimate"), None)
+            flash = next((t for t in timers if t.kind == "summoner" and t.spell_key == "Flash"), None)
+            summoners = sorted((t for t in timers if t.kind == "summoner" and t.spell_key != "Flash"),
+                               key=lambda t: (order.get(t.spell_key, len(order)), t.spell_key))
+            rows = [ult, flash, *summoners]
+            rows.extend([None] * max(0, 3 - len(rows)))
+            result.append((timers[0], tuple(rows)))
+        return result
+
+    @staticmethod
+    def _card_display(timer: ActiveTimer | None) -> str:
+        return "" if timer is None or timer.is_ready() else timer.display()
+
     def _card_metrics(self, scale: float) -> dict:
         portrait = int(CARD_PORTRAIT * scale)
         badge = int(CARD_BADGE * scale)
-        # From the font, for the reason the track's is: a row shorter than the
-        # letters it holds crops them, and a card shorter than its own contents
-        # puts the last line outside the panel.
         text = QFontMetrics(self._card_font(scale)).height()
-        # A card is as wide as the widest thing in it, and that is not always the
-        # portrait: READY plus a "?" chip overruns a portrait and its badge. The
-        # room is reserved on every card and at every moment -- cards are the
-        # display whose whole point is that nothing moves, so a width that
-        # depended on what is currently uncertain would defeat it.
         widest = QFontMetrics(self._card_font(scale))
+        pad = max(3, int(CARD_PAD * scale))
+        gap = max(3, int(CARD_GAP * scale))
+        groups = self._card_groups()
+        rows = (max([3, *(len(slots) for _, slots in groups)]) + 2) // 3
+        column_widths = [badge] * 3
+        for _, timers in groups:
+            for index, timer in enumerate(timers):
+                value = self._card_display(timer)
+                width = widest.horizontalAdvance(value)
+                if timer is not None and value:
+                    # Reserve a full minute format so ticking digits do not
+                    # move the columns; ready icons have no label underneath.
+                    width = max(width, widest.horizontalAdvance(
+                        "~0:00" if timer.approximate else "0:00"))
+                    if timer.uncertain:
+                        width += chip_extra(widest, scale)
+                column = index % 3
+                column_widths[column] = max(column_widths[column], width)
+        column_gap = max(6, int(8 * scale))
+        row_height = badge + gap + text
         return {
             "portrait": portrait,
             "badge": badge,
-            "ring": max(1.6, CARD_RING * scale),
             "text": text,
-            "width": max(portrait + badge // 2 + int(3 * scale),
-                         widest.horizontalAdvance("READY")
-                         + chip_extra(widest, scale)),
-            "height": portrait + int(1 * scale) + text,
-            "gap": int(CARD_GAP * scale),
-            "pad": int(CARD_PAD * scale),
+            "width": max(portrait, sum(column_widths) + 2 * column_gap) + 2 * pad,
+            "height": portrait + gap + rows * row_height + (rows - 1) * gap + 2 * pad,
+            "column_widths": column_widths,
+            "column_gap": column_gap,
+            "row_height": row_height,
+            "rows": rows,
+            "gap": gap,
+            "pad": pad,
         }
 
     def _card_slots(self, scale: float) -> list[CardSlot]:
-        """One card per cooldown, in fixed slots, wrapped to the window's width.
+        """One card per champion, with all its timers inside the same slot.
 
         Laid out apart from the painting for the same reason the track is: the
         property that matters -- every card visible, none on top of another, all
@@ -1628,8 +1710,9 @@ class Overlay(QWidget):
                    // (metrics["height"] + metrics["gap"]))
 
         slots: list[CardSlot] = []
-        total = len(self._timers)
-        for index, timer in enumerate(self._timers):
+        groups = self._card_groups()
+        total = len(groups)
+        for index, (timer, timers) in enumerate(groups):
             row, column = divmod(index, columns)
             if row >= rows:
                 # More cooldowns than the window has room for. Dropping the tail
@@ -1642,21 +1725,28 @@ class Overlay(QWidget):
                  + column * (metrics["width"] + metrics["gap"]))
             y = metrics["pad"] + row * (metrics["height"] + metrics["gap"])
 
-            # The portrait and the badge overhanging it are centred on the card
-            # rather than pinned to its left edge: the card is now as wide as its
-            # countdown needs, which is wider than the two of them.
-            group = metrics["portrait"] + int(metrics["badge"] * 0.55)
-            portrait = QRect(x + (metrics["width"] - group) // 2, y,
+            portrait = QRect(x + (metrics["width"] - metrics["portrait"]) // 2,
+                             y + metrics["pad"],
                              metrics["portrait"], metrics["portrait"])
+            spells = []
+            for spell_index, spell_timer in enumerate(timers):
+                spell_row, spell_column = divmod(spell_index, 3)
+                row_y = (portrait.bottom() + 1 + metrics["gap"]
+                         + spell_row * (metrics["row_height"] + metrics["gap"]))
+                column_x = (x + metrics["pad"]
+                            + sum(metrics["column_widths"][:spell_column])
+                            + spell_column * metrics["column_gap"])
+                column_width = metrics["column_widths"][spell_column]
+                spells.append(CardSpellSlot(
+                    timer=spell_timer,
+                    badge=QRect(column_x + (column_width - metrics["badge"]) // 2, row_y,
+                                metrics["badge"], metrics["badge"]),
+                    text=QRect(column_x, row_y + metrics["badge"] + metrics["gap"],
+                               column_width, metrics["text"])))
             slots.append(CardSlot(
                 timer=timer,
                 rect=QRect(x, y, metrics["width"], metrics["height"]),
-                portrait=portrait,
-                badge=QRect(portrait.right() - int(metrics["badge"] * 0.45),
-                            portrait.bottom() - metrics["badge"] + 1,
-                            metrics["badge"], metrics["badge"]),
-                text=QRect(x, portrait.bottom() + int(1 * scale),
-                           metrics["width"], metrics["text"])))
+                portrait=portrait, spells=tuple(spells)))
         return slots
 
     def _card_rects(self) -> list[QRect]:
@@ -1666,13 +1756,7 @@ class Overlay(QWidget):
 
     def _paint_cards(self, painter: QPainter, theme: dict, scale: float,
                      locked: bool) -> None:
-        """A card per cooldown, at a place that never moves.
-
-        The track is clever but it moves, and a moving thing has to be found
-        before it can be read. Here the portrait stays put and the ring around it
-        closes instead -- the same sweep every cooldown in the game itself draws,
-        so this display is read rather than learned.
-        """
+        """Portrait above R / Flash / other spell, with a time under each icon."""
         idle = not self._timers
         if idle and self._draw_nothing_at_rest(locked):
             return
@@ -1688,42 +1772,39 @@ class Overlay(QWidget):
             return
 
         time_font = self._card_font(scale)
-        # The unfilled part of the ring has to be visible, or a cooldown that has
-        # barely started shows a tick of colour and no ring at all -- which reads
-        # as a rendering fault rather than as "just used".
-        track = _colour(theme, "rail")
-        # The gap between the ring and the portrait is what makes the ring
-        # readable, and it is wider than it looks like it needs to be on purpose.
-        # Champion artwork is mostly dark, so a dark ring drawn tight against it
-        # merges into it -- which is exactly what happened when the light theme
-        # turned the neutral ring from near-white to near-black. Let the panel show
-        # through between the two and each is seen against its own ground.
-        inset = int(metrics["ring"]) + 3
-
+        # A champion has several cooldowns, so its portrait has a neutral border.
         for slot in self._card_slots(scale):
-            timer = slot.timer
-            colour = self._state_colour(theme, timer)
-
-            if timer.is_ready():
-                # A wash inside the ring, so a spell that is back up is caught by
-                # the eye before any number is read.
-                glow = QColor(_colour(theme, "ready"))
-                glow.setAlpha(52)
-                painter.setBrush(glow)
-                painter.setPen(Qt.NoPen)
-                painter.drawEllipse(slot.portrait)
-                painter.setBrush(Qt.NoBrush)
-
-            self._paint_portrait(painter, theme, timer,
-                                 slot.portrait.adjusted(inset, inset,
-                                                        -inset, -inset))
-            self._paint_progress_ring(
-                painter, slot.portrait.adjusted(1, 1, -1, -1), metrics["ring"],
-                self._progress(timer), colour, track)
-            self._paint_spell_badge(painter, theme, timer, slot.badge, scale)
-            self._paint_countdown(painter, theme, slot.text, timer.display(),
-                                  colour, time_font,
-                                  uncertain=timer.uncertain, scale=scale)
+            self._paint_portrait(painter, theme, slot.timer, slot.portrait)
+            painter.setPen(QPen(_colour(theme, "border"), 1.2 * scale))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawEllipse(slot.portrait)
+            for index, spell in enumerate(slot.spells):
+                timer = spell.timer
+                if timer is not None:
+                    self._paint_spell_badge(painter, theme, timer, spell.badge, scale)
+                    value = self._card_display(timer)
+                    if value:
+                        paint_card_cooldown_mask(painter, spell.badge, scale)
+                        self._paint_countdown(painter, theme, spell.text, value,
+                                              self._state_colour(theme, timer), time_font,
+                                              Qt.AlignHCenter | Qt.AlignVCenter,
+                                              uncertain=timer.uncertain, scale=scale)
+                else:
+                    # Unobserved cooldowns keep the normal icon, as requested.
+                    # The fixed Flash slot is presentation only, never a timer.
+                    champion = self.assets.champions.get(slot.timer.champion_id)
+                    ult = champion.ultimate if champion else None
+                    path = ult.icon_path if index == 0 and ult is not None else None
+                    if index == 1:
+                        path = self.assets.icon_for_spell("Flash")
+                    icon = self.icons.get(path, metrics["badge"], round_=True)
+                    if icon is not None:
+                        painter.drawPixmap(spell.badge.topLeft(), icon)
+                    else:
+                        painter.setPen(QPen(_colour(theme, "rail"), 1.0))
+                        painter.drawEllipse(spell.badge)
+                        painter.setFont(time_font)
+                        painter.drawText(spell.badge, Qt.AlignCenter, "R" if index == 0 else "?")
 
         self._paint_grip(painter, theme, locked)
 
@@ -1803,7 +1884,7 @@ class Overlay(QWidget):
         # The "?" chip's room is part of the column, always: a countdown that
         # widened the moment a ping was confirmed would drag every champion's
         # name along with it.
-        time_width = (time_metrics.horizontalAdvance("READY")
+        time_width = (time_metrics.horizontalAdvance(tr("overlay.ready"))
                       + chip_extra(time_metrics, scale) + int(6 * scale))
 
         for timer in self._timers:

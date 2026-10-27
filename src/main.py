@@ -40,7 +40,7 @@ from i18n import tr
 from message_parser import MessageParser
 from ocr import CaptureWorker
 from onboarding import Onboarding
-from overlay import Overlay
+from overlay import LAYOUT_CARDS, Overlay
 from riot_assets import RiotAssets
 from roles import ROLES
 from settings import Settings
@@ -219,6 +219,9 @@ class Application:
         # True while the trial mode is running: fake cooldowns on screen, every
         # hide rule overridden, and no game in sight.
         self._demo = False
+        # Explicit guide placement inside an already-running match uses the
+        # live bar, never demo timers. Relock on guide completion/session change.
+        self._placing_live_overlay = False
         # One test-mode frame per area being placed, keyed by zone.
         self.zone_frames: dict[str, ZoneFrame] = {}
         # What to put back if the chat test mode is cancelled.
@@ -658,6 +661,8 @@ class Application:
                 break
 
             if payload.get("session_changed"):
+                if self._placing_live_overlay:
+                    self._on_overlay_locked(True)
                 self.timers.reset(reason="session changed")
                 self._known_champions.clear()
                 self._applied_roles = {}
@@ -764,7 +769,8 @@ class Application:
             else:
                 self.notifier.ready()
 
-        snapshot = self.timers.snapshot()
+        snapshot = self.timers.snapshot(
+            keep_ready=self.settings.get("overlay_layout") == LAYOUT_CARDS)
         self.overlay.set_timers(snapshot)
 
         status = getattr(self, "_latest_status", None)
@@ -1185,6 +1191,8 @@ class Application:
             visible=visible, locked=bool(self.settings.get("overlay_locked")))
 
     def _on_overlay_locked(self, locked: bool) -> None:
+        if locked:
+            self._placing_live_overlay = False
         self.settings.set("overlay_locked", locked)
         self.overlay.apply_lock(locked)
         self.action_lock.setChecked(locked)
@@ -1227,6 +1235,8 @@ class Application:
         Not a dead end: the last step is about the overlay, so the natural next
         move is the page that has the rest of its settings on it.
         """
+        if self._placing_live_overlay:
+            self._on_overlay_locked(True)
         self.guide = None
         self.control.refresh_layout_choice()
         self.control.go_to_display_page()
@@ -1251,9 +1261,9 @@ class Application:
     def _on_place_overlay(self) -> None:
         """Put the overlay on screen, unlocked, with something in it to aim at.
 
-        Placing an empty display is possible but unpleasant -- there is nothing to
-        judge the position against -- so this is the trial and the unlock
-        together, which is what "place it now" means.
+        Outside a match this starts the trial and unlocks it. In an existing
+        match, use the live display: _refresh_ui rightly ends trials as soon as
+        a game exists, which used to undo placement on the next refresh.
 
         Nothing races the user here. Unlocked, the overlay accepts mouse events,
         so a bar left unlocked *while playing* would swallow clicks over the game
@@ -1263,7 +1273,13 @@ class Application:
         """
         if not self.settings.get("overlay_visible"):
             self._on_overlay_visible(True)
-        self._on_demo_toggled(True)
+        status = getattr(self, "_latest_status", None)
+        self._placing_live_overlay = bool(status is not None and status.in_game)
+        if not self._placing_live_overlay:
+            self._on_demo_toggled(True)
+        # Inside an existing match, adding then clearing demo entries can also
+        # remove real timers sharing their keys. Use the live bar instead; its
+        # empty track is still visible while unlocked and can be positioned.
         self._on_overlay_locked(False)
         self.overlay.raise_()
 
@@ -1299,7 +1315,8 @@ class Application:
             if self.timers is not None:
                 self.timers.clear_demo()
         if self.timers is not None:
-            self.overlay.set_timers(self.timers.snapshot())
+            self.overlay.set_timers(self.timers.snapshot(
+                keep_ready=self.settings.get("overlay_layout") == LAYOUT_CARDS))
         self.overlay.update()
         log.info("trial mode %s", "on" if active else "off")
 
@@ -1313,7 +1330,8 @@ class Application:
         if not self._demo or self.timers is None:
             return
         if self.timers.add_demo():
-            self.overlay.set_timers(self.timers.snapshot())
+            self.overlay.set_timers(self.timers.snapshot(
+                keep_ready=self.settings.get("overlay_layout") == LAYOUT_CARDS))
 
     def _end_demo_for_game(self) -> None:
         """A real game appeared: the trial gets out of the way.
@@ -1479,7 +1497,11 @@ class Application:
         self.overlay.save_geometry()
         self.settings.save()
         self.tray.hide()
-        self.app.quit()
+        # State is saved already. Exit the loop explicitly: the control window
+        # normally ignores close events to hide to the tray, which can veto a
+        # Qt Quit request and leave a windowless packaged process holding the
+        # single-instance token after the user chose "Quit the program".
+        self.app.exit(0)
 
 
 SINGLE_INSTANCE_NAME = single_instance.NAME

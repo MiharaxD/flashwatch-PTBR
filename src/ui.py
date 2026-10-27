@@ -68,8 +68,9 @@ from PySide6.QtWidgets import (QAbstractButton, QComboBox, QDoubleSpinBox,
 import autostart
 import icons
 from chat_detector import ChatRegion
-from i18n import ENGLISH, FRENCH, language_for, locale_for, tr
-from overlay import LAYOUT_BAR, LAYOUT_CARDS, LAYOUT_LIST, LAYOUTS
+from i18n import ENGLISH, FRENCH, PORTUGUESE, language_for, locale_for, tr
+from overlay import (LAYOUT_BAR, LAYOUT_CARDS, LAYOUT_LIST, LAYOUTS,
+                     paint_card_cooldown_mask)
 from theme import (DANGER, INK, INK_FAINT, MENU, PAINT, READY, SIGNAL, SOON,
                    art_path, control_qss, mark_pixmap, menu_family)
 from audio import PRESETS as audio_presets
@@ -180,23 +181,26 @@ def paint_layout_sketch(painter: QPainter, rect: QRect, kind: str) -> None:
                              x + radius, y + radius * 2 + 3)
 
     elif kind == LAYOUT_CARDS:
-        # Three rings, evenly spaced, each with its number under it.
-        radius = max(5, min(rect.height() // 4, rect.width() // 9))
-        spacing = radius * 3
-        centre_y = rect.center().y() - radius // 2
-        start = rect.center().x() - spacing
-        for index, (progress, colour) in enumerate(
-                zip((0.25, 0.62, 0.92), ladder)):
-            cx = start + index * spacing
-            box = QRect(cx - radius, centre_y - radius, radius * 2, radius * 2)
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(faint, 2))
-            painter.drawEllipse(box)
-            painter.setPen(QPen(colour, 2))
-            painter.drawArc(box, 90 * 16, -int(360 * 16 * progress))
-            painter.setPen(QPen(colour, 2))
-            painter.drawLine(cx - radius + 1, box.bottom() + 6,
-                             cx + radius - 1, box.bottom() + 6)
+        # A portrait above three icons, each with its countdown underneath.
+        step = rect.width() / 3.0
+        radius = max(3, min(rect.height() // 8, rect.width() // 20))
+        for column in range(3):
+            cx = int(rect.left() + step * (column + .5))
+            cy = rect.top() + radius + 4
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(dim)
+            painter.drawEllipse(QRect(cx - radius, cy - radius, 2 * radius, 2 * radius))
+            top = cy + radius + 5
+            for spell, colour in enumerate(ladder):
+                x = int(cx + (spell - 1) * step * .27)
+                painter.setPen(Qt.NoPen)
+                painter.setBrush(colour)
+                icon_rect = QRect(x - 2, top, 4, 4)
+                painter.drawEllipse(icon_rect)
+                if spell != 1:
+                    paint_card_cooldown_mask(painter, icon_rect, .2)
+                    painter.setPen(QPen(colour, 2))
+                    painter.drawLine(x - 3, top + 8, x + 3, top + 8)
 
     else:
         # Three rows, each a portrait, a label, a number and a gauge.
@@ -1975,7 +1979,7 @@ class ControlWindow(QWidget):
         self.spin_timer_scale.setRange(0.4, 2.0)
         self.spin_timer_scale.setSingleStep(0.05)
         self.spin_timer_scale.setValue(
-            float(self.settings.get("timer_font_scale", 0.5)))
+            float(self.settings.get("timer_font_scale", 1.5)))
         self.spin_timer_scale.setToolTip(tr("ui.timer_size_tip"))
         self.spin_timer_scale.valueChanged.connect(self._on_settings_changed)
         self.size_of(self.spin_timer_scale, height=42)
@@ -2137,6 +2141,7 @@ class ControlWindow(QWidget):
         self.combo_language = Select()
         self.combo_language.addItem(tr("ui.language_fr"), FRENCH)
         self.combo_language.addItem(tr("ui.language_en"), ENGLISH)
+        self.combo_language.addItem(tr("ui.language_pt"), PORTUGUESE)
         index = self.combo_language.findData(
             language_for(str(self.settings.get("locale", "en_US"))))
         if index >= 0:
@@ -2570,9 +2575,11 @@ class ControlWindow(QWidget):
             champion = self.assets.champions.get(champion_id)
             name = champion.name if champion else champion_id
             combo = Select()
-            combo.addItems(ROLES)
-            combo.currentTextChanged.connect(
-                lambda role, cid=champion_id: on_role_changed(cid, role))
+            for role in ROLES:
+                combo.addItem(tr(f"role.{role.lower()}") if role else "", role)
+            combo.currentIndexChanged.connect(
+                lambda _index, cid=champion_id, box=combo:
+                on_role_changed(cid, box.currentData()))
             self.size_of(combo, 200, 42)
             self.font(combo, 15, W500)
             combo.setFont(self.font_at(15, W500))
@@ -2594,10 +2601,10 @@ class ControlWindow(QWidget):
 
     def set_role_display(self, champion_id: str, role: str) -> None:
         combo = self._role_combos.get(champion_id)
-        if combo is None or combo.currentText() == role:
+        if combo is None or combo.currentData() == role:
             return
         combo.blockSignals(True)
-        combo.setCurrentText(role if role in ROLES else "")
+        combo.setCurrentIndex(combo.findData(role if role in ROLES else ""))
         combo.blockSignals(False)
 
     def clear_team(self) -> None:
@@ -2806,7 +2813,7 @@ class ControlWindow(QWidget):
             self._sync_opacity_label(self.slider_opacity.value())
             self.spin_scale.setValue(float(self.settings.get("overlay_scale", 1.0)))
             self.spin_timer_scale.setValue(
-                float(self.settings.get("timer_font_scale", 0.5)))
+                float(self.settings.get("timer_font_scale", 1.5)))
             self.spin_ready_linger.setValue(
                 int(self.settings.get("ready_linger_seconds", 5)))
             for box, key in (

@@ -2,6 +2,32 @@
 
 # Flashwatch
 
+**Baixar a edição brasileira para Windows:**
+[instalador (.msi)](https://github.com/MiharaxD/flashwatch-PTBR/releases/latest/download/FlashWatch-PTBR-Setup.msi)
+ou [executável portátil](https://github.com/MiharaxD/flashwatch-PTBR/releases/latest/download/FlashWatch-PTBR.exe).
+Não precisa instalar Python. Feche a cópia antiga pela bandeja antes de instalar.
+
+**PT-BR localization:** this checkout adds Brazilian Portuguese while retaining
+English and French. Build output: `dist/FlashWatch-PTBR.exe`. Select **Português /
+Brasil** in the setup guide. See [Portuguese documentation](docs/PTBR.md),
+[validation results](docs/VALIDACAO-PTBR.md) and [notices](NOTICE-PTBR.md).
+Brazilian cast wording has Riot textual evidence; remaining-cooldown phrases
+are explicitly unverified hypotheses. The shipped real screenshot is English.
+
+**Fixed cards revision:** champion portrait above ultimate / Flash / other spell,
+with the time below cooling-down icons, a translucent grey veil and an X.
+Ready icons appear normally without a label (also assumed without an observed
+cooldown). Other displays retain their presentation.
+Champion cards now remain after all cooldowns expire, until the session is reset.
+See [persistence revision and checks](docs/CARTOES-PERSISTENTES.md) and
+[icon appearance](docs/ICONES-DE-RECARGA.md).
+Revised build: `dist/cartoes-persistentes/FlashWatch-PTBR.exe`.
+
+**Windows installer:** `dist/instalador/FlashWatch-PTBR-Setup.msi` installs the
+same verified executable for the current user, with Start Menu shortcuts and an
+optional desktop shortcut. See [installation instructions](docs/INSTALADOR.md).
+Build with Python 3.11 on Windows: `python build_installer.py`.
+
 Overlay that tracks enemy summoner spell and ultimate cooldowns by reading the
 in-game chat with OCR. No key presses needed during a game.
 
@@ -323,8 +349,8 @@ directory and a fake HTTP session.
 
 ```bash
 .venv\Scripts\python -m pip install pyinstaller
-.venv\Scripts\python build.py            # -> dist\Flashwatch.exe   (~99 MB)
-.venv\Scripts\python build.py --dir       # -> dist\Flashwatch\      (a folder)
+.venv\Scripts\python build.py            # -> dist\FlashWatch-PTBR.exe   (~99 MB)
+.venv\Scripts\python build.py --dir       # -> dist\FlashWatch-PTBR\      (a folder)
 .venv\Scripts\python build.py --out DIR   # -> DIR\Flashwatch.exe
 .venv\Scripts\python build.py --console   # keeps a terminal, to see start-up errors
 ```
@@ -333,7 +359,7 @@ Windows will not overwrite a running program, so close Flashwatch before rebuild
 (the script says so rather than failing a minute in) — or use `--out` to build a
 copy somewhere else.
 
-`dist\Flashwatch.exe` is the whole program: **no Python, no install, nothing else to
+`dist\FlashWatch-PTBR.exe` is the whole program: **no Python, no install, nothing else to
 send**. The recipient double-clicks it and it appears in the system tray. Zipping it
 saves nothing (0.5%, it is already compressed) and is only worth doing for a channel
 that refuses `.exe` attachments.
@@ -401,7 +427,7 @@ Set League to **Borderless** in video settings. Everything else works either way
 
 ## Language
 
-English out of the box, French on request, picked in **Settings → Language**
+English out of the box, French and Brazilian Portuguese on request, picked in **Settings → Language**
 (the setup guide asks on the first screen). One choice drives three things: the
 wordings looked for in chat, the champion and spell names downloaded from Data
 Dragon, and the interface itself.
@@ -945,7 +971,7 @@ src/
   game_detector.py   League process/window detection
   riot_assets.py     Data Dragon data and icon cache
   cooldowns.py       cooldown table
-  i18n.py            every user-facing string, French and English
+  i18n.py            every user-facing string, French, English and Brazilian Portuguese
   settings.py        persisted configuration
   single_instance.py one copy at a time; a second launch opens the first's window
   audio.py           notification tones: 22 voices, synthesised on demand

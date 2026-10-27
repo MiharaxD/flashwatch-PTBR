@@ -138,12 +138,12 @@ jobs:
           if (-not $tool) { throw 'signtool.exe not found on the runner' }
           & $tool sign /f $pfx /p $env:SIGN_PASS /fd SHA256 `
                   /tr http://timestamp.digicert.com /td SHA256 `
-                  /d 'Flashwatch' dist/Flashwatch.exe
+                  /d 'Flashwatch' dist/FlashWatch-PTBR.exe
           if ($LASTEXITCODE -ne 0) { throw "signing failed ($LASTEXITCODE)" }
           # Removed rather than left for the job to clean up: the runner is
           # disposable, but the file is a private key and the log is public.
           Remove-Item $pfx -Force
-          & $tool verify /pa /v dist/Flashwatch.exe
+          & $tool verify /pa /v dist/FlashWatch-PTBR.exe
           if ($LASTEXITCODE -ne 0) { throw 'the signature did not verify' }
 
       # ── SignPath, for open source ──────────────────────────────────────
@@ -163,7 +163,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: flashwatch-unsigned
-          path: dist/Flashwatch.exe
+          path: dist/FlashWatch-PTBR.exe
 
       - name: Sign it
         if: env.SIGNPATH_TOKEN != ''
@@ -182,7 +182,7 @@ jobs:
 
       - name: Check what came out
         run: |
-          $exe = 'dist/Flashwatch.exe'
+          $exe = 'dist/FlashWatch-PTBR.exe'
           if (-not (Test-Path $exe)) { throw 'no executable was produced' }
           $mb = [math]::Round((Get-Item $exe).Length / 1MB, 1)
           Write-Host "built $exe  ($mb MB)"
@@ -198,6 +198,6 @@ jobs:
           tag_name: ${{ steps.meta.outputs.tag }}
           name: ${{ steps.meta.outputs.tag }}
           body_path: RELEASE_NOTES.md
-          files: dist/Flashwatch.exe
+          files: dist/FlashWatch-PTBR.exe
           fail_on_unmatched_files: true
           make_latest: true

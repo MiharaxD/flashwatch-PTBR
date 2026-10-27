@@ -221,8 +221,8 @@ overlay.set_countdown_style(overlay.FACE_AUTO, 0.5)
 half = overlay.countdown_font(BIG).pointSizeF()
 check("halving the size setting halves the countdown",
       abs(half * 2 - full) < 0.01, f"{full:.1f} -> {half:.1f}")
-check("and half is what a fresh install gets",
-      DEFAULTS["timer_font_scale"] == 0.5)
+check("a fresh install gets the larger 1.5x countdown",
+      DEFAULTS["timer_font_scale"] == 1.5)
 
 overlay.set_countdown_style("Consolas", 1.0)
 check("a named face is used", overlay.countdown_font(BIG).family() == "Consolas",

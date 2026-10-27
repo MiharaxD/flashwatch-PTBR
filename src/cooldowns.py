@@ -69,6 +69,10 @@ ALIASES: dict[str, str] = {
     # Exhaust
     "exhaust": "Exhaust", "exhau5t": "Exhaust", "exhaus": "Exhaust",
     "exh": "Exhaust",
+    # Brazilian chat shorthand only. Official names are indexed from Data
+    # Dragon by MessageParser, so this table does not duplicate Riot's names.
+    "exa": "Exhaust", "exaust": "Exhaust",
+    "ig": "Ignite",
     # Smite
     "smite": "Smite", "5mite": "Smite", "smit": "Smite",
     # Snowball -- "Boule de neige" in French, "Mark" in English.

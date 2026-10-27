@@ -1,0 +1,28 @@
+{
+  "source": "user_game_capture",
+  "source_attachment": "codex-clipboard-1b9d080a-fe15-4a15-92c2-ef01aa8c6097.png",
+  "sha256": "c43be3d4a26894cbae573613e34b05ea0e0484d9ad0ef2676097e7209ac84405",
+  "width": 2560,
+  "height": 1440,
+  "locale": "pt_BR",
+  "patch": null,
+  "manual_chat_region": [
+    75,
+    820,
+    690,
+    255
+  ],
+  "observed": [
+    "00:57 fodase (Kayn): Nasus usou Fantasma",
+    "01:02 fodase (Kayn): Nasus R",
+    "07:03 fodase (Kayn): Espere por R - 33s",
+    "07:09 fodase (Kayn): Nasus R",
+    "07:14 fodase (Kayn): Nasus R",
+    "07:44 fodase (Kayn): Nasus R",
+    "07:47 fodase (Kayn): R - Pronto(a)"
+  ],
+  "user_reported_not_visible": [
+    "<Campeão> usou R"
+  ],
+  "note": "Original screenshot preserved. The wait/ready lines do not name a target; never infer one from the author."
+}

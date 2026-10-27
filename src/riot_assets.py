@@ -236,7 +236,7 @@ class RiotAssets:
                     continue
         image_id = ult.get("id") or ""
         return UltimateInfo(
-            name=str(ult.get("name") or "Ultime"),
+            name=str(ult.get("name") or tr("spell.ultimate")),
             ddragon_id=str(image_id),
             cooldown_by_rank=cooldowns,
         )

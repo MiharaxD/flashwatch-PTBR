@@ -61,9 +61,10 @@ from PySide6.QtGui import (QColor, QFont, QFontMetricsF, QGuiApplication,
                            QPolygonF, QRadialGradient)
 from PySide6.QtWidgets import QWidget
 
-from i18n import ENGLISH, FRENCH, language_for, locale_for, tr
+from i18n import ENGLISH, FRENCH, PORTUGUESE, LANGUAGES, language_for, locale_for, tr
 from overlay import (FACE_AUTO, LAYOUT_BAR, LAYOUT_CARDS, LAYOUT_LIST,
-                     LAYOUTS, THEMES, available_countdown_faces)
+                     LAYOUTS, THEMES, available_countdown_faces,
+                     paint_card_cooldown_mask)
 from settings import DEFAULTS
 from theme import GUIDE, menu_family
 
@@ -533,7 +534,7 @@ def choice_mark(painter: QPainter, rect: QRectF, weight: float) -> None:
 
 
 def flag(painter: QPainter, rect: QRectF, language: str) -> None:
-    """Two flags out of rectangles. No asset, no licence question, any DPI."""
+    """Language flags painted at any DPI, using the existing card style."""
     shadow(painter, rect, 6, spread=9, drop=6, alpha=110)
     painter.save()
     path = QPainterPath()
@@ -546,6 +547,21 @@ def flag(painter: QPainter, rect: QRectF, language: str) -> None:
             painter.setBrush(QColor(colour))
             painter.drawRect(QRectF(rect.left() + index * third, rect.top(),
                                     third + 1, rect.height()))
+    elif language == PORTUGUESE:
+        painter.fillRect(rect, QColor("#009b3a"))
+        diamond = QPainterPath()
+        diamond.moveTo(rect.center().x(), rect.top() + rect.height() * 0.12)
+        diamond.lineTo(rect.right() - rect.width() * 0.10, rect.center().y())
+        diamond.lineTo(rect.center().x(), rect.bottom() - rect.height() * 0.12)
+        diamond.lineTo(rect.left() + rect.width() * 0.10, rect.center().y())
+        diamond.closeSubpath()
+        painter.fillPath(diamond, QColor("#ffdf00"))
+        painter.setBrush(QColor("#002776"))
+        radius = rect.height() * 0.23
+        painter.drawEllipse(rect.center(), radius, radius)
+        painter.setPen(QPen(QColor("#ffffff"), rect.height() * 0.035))
+        painter.drawLine(rect.center() + QPointF(-radius * 0.85, -radius * 0.2),
+                         rect.center() + QPointF(radius * 0.85, radius * 0.3))
     else:
         stripe = rect.height() / 13.0
         painter.setBrush(QColor("#ffffff"))
@@ -1260,6 +1276,8 @@ def paint_game(painter: QPainter, rect: QRectF, guide, mode: str) -> None:
             pointer(painter, [start, end], grown, c("accent_lit"), head=11)
         ghost = QRectF(rect.right() - rect.width() * 0.44 - 130,
                        rect.bottom() - 250, rect.width() * 0.40, 64)
+        if kind == LAYOUT_CARDS:
+            ghost.setHeight(128 * clamp(guide.overlay_style()["scale"], 0.5, 2.4) + 8)
         pen = QPen(c("accent_pale", 150), 2.0)
         pen.setDashPattern([5.0, 5.0])
         pen.setDashOffset(guide.march * 20.0)
@@ -1357,7 +1375,7 @@ def overlay_style(settings) -> dict:
         "opacity": float(settings.get("overlay_opacity", 0.92)),
         "scale": float(settings.get("overlay_scale", 1.0)),
         "face": face_name(str(settings.get("timer_font", FACE_AUTO))),
-        "timer_scale": float(settings.get("timer_font_scale", 0.5)),
+        "timer_scale": float(settings.get("timer_font_scale", 1.5)),
         "vertical": bool(settings.get("bar_vertical", False)),
     }
 
@@ -1408,6 +1426,10 @@ def paint_overlay(painter: QPainter, rect: QRectF, kind: str,
             room = max(1.0, clamp(style["timer_scale"] / 0.5, 0.4, 2.6))
             rect = QRectF(rect.left(), rect.top(),
                           108 * grown * min(room, 1.9), 252 * grown)
+            k = clamp(grown, 0.42, 1.4)
+        elif kind == LAYOUT_CARDS:
+            rect = QRectF(centre.x() - rect.width() * grown / 2, rect.top(),
+                          rect.width() * grown, 128 * grown)
             k = clamp(grown, 0.42, 1.4)
         else:
             rect = QRectF(centre.x() - rect.width() * grown / 2,
@@ -1464,16 +1486,31 @@ def paint_overlay(painter: QPainter, rect: QRectF, kind: str,
                  numerals(19 * k), colour, align=Qt.AlignRight)
     elif kind == LAYOUT_CARDS:
         step = rect.width() / max(1, len(entries))
-        for index, (value, colour, progress) in enumerate(entries):
+        portrait_size = rect.height() * .32
+        top = rect.top() + rect.height() * .07
+        icons_top = top + portrait_size + rect.height() * .07
+        for index, (value, colour, _progress) in enumerate(entries):
             cx = rect.left() + step * (index + 0.5)
-            ring = QRectF(cx - 20 * k, rect.top() + 10 * k, 40 * k, 40 * k)
-            painter.setBrush(Qt.NoBrush)
-            painter.setPen(QPen(hair, 4 * k))
-            painter.drawEllipse(ring)
-            painter.setPen(QPen(colour, 4 * k))
-            painter.drawArc(ring, 90 * 16, -int(360 * 16 * progress))
-            line(painter, cx, ring.bottom() + 4 * k, value,
-                 numerals(17 * k), colour, align=Qt.AlignHCenter)
+            painter.setBrush(faint)
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(QRectF(cx - portrait_size / 2, top, portrait_size, portrait_size))
+            for column, (time_text, spell_colour) in enumerate(
+                    ((value, colour), ("", ready), ("2:41", ink))):
+                spell_x = cx + (column - 1) * step * .29
+                icon_size = rect.height() * .21
+                painter.setBrush(spell_colour)
+                painter.setPen(Qt.NoPen)
+                icon_rect = QRectF(spell_x - icon_size / 2, icons_top, icon_size, icon_size)
+                painter.drawEllipse(icon_rect)
+                if time_text:
+                    paint_card_cooldown_mask(painter, icon_rect, k)
+                font = QFont(style["face"]) if style else px(12, QFont.Bold)
+                font.setPixelSize(max(3, round(min(rect.height() * .19, step * .09))))
+                font.setWeight(QFont.Bold)
+                text_top = icons_top + icon_size + rect.height() * .04
+                if time_text:
+                    line(painter, spell_x, text_top, time_text, font,
+                         spell_colour, align=Qt.AlignHCenter)
     elif vertical:
         # Position is still progress, only downwards: the same reading, turned
         # a quarter turn, which is the whole of what the setting does.
@@ -1631,9 +1668,9 @@ class LanguageScreen(Screen):
 
     @staticmethod
     def _cards() -> list[tuple[str, QRectF]]:
-        width = (890 - 30) / 2
-        return [(FRENCH, QRectF(552, 320, width, 382)),
-                (ENGLISH, QRectF(552 + width + 30, 320, width, 382))]
+        width = (890 - 30 * (len(LANGUAGES) - 1)) / len(LANGUAGES)
+        return [(language, QRectF(552 + index * (width + 30), 320, width, 382))
+                for index, language in enumerate(LANGUAGES)]
 
     def _card(self, painter: QPainter, guide, rect: QRectF,
               language: str) -> None:
@@ -2853,7 +2890,7 @@ class Onboarding(QWidget):
 
     def _sync_language(self, *, animate: bool = True) -> None:
         current = self.current_language()
-        for language in (FRENCH, ENGLISH):
+        for language in LANGUAGES:
             self.weights.set(f"lang:{language}", 1.0 if language == current
                              else 0.0, animate=animate)
 
@@ -2893,7 +2930,7 @@ class Onboarding(QWidget):
         painted rather than built out of widgets: step one changes the language
         of steps two to eight, and it must not cost a rebuild.
         """
-        if language not in (FRENCH, ENGLISH) or language == self.current_language():
+        if language not in LANGUAGES or language == self.current_language():
             return
         self.settings.set("locale", locale_for(language))
         self._sync_language()

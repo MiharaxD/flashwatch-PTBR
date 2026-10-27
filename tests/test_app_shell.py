@@ -30,6 +30,21 @@ import main as app_main
 import single_instance
 import updater
 
+# This suite creates the app/worker, but must never inspect a running game or
+# capture the desktop. All match transitions below are simulated explicitly.
+import game_detector
+import mss
+from types import SimpleNamespace
+game_detector.find_game_window = lambda: 0
+game_detector.GameDetector._poll_processes = lambda self, *, force=False: (False, 0)
+
+
+def forbid_live_capture(*_args, **_kwargs):
+    raise AssertionError("app-shell test attempted a live screen capture")
+
+
+mss.mss = lambda: SimpleNamespace(grab=forbid_live_capture, close=lambda: None)
+
 results = []
 def check(name, cond, extra=""):
     results.append(bool(cond))

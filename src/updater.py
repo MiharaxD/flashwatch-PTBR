@@ -41,13 +41,16 @@ from pathlib import Path
 from typing import Callable
 
 import requests
+from i18n import tr
 
 log = logging.getLogger(__name__)
 
 OWNER = "abenfraj"
 REPO = "flashwatch"
 # The name the release workflow attaches, and the name the running copy has.
-ASSET_NAME = "Flashwatch.exe"
+# Never replace the localized build with an upstream binary without PT-BR.
+# A publisher must attach this exact name; lookup/swap/rollback stay unchanged.
+ASSET_NAME = "FlashWatch-PTBR.exe"
 
 API_LATEST = f"https://api.github.com/repos/{OWNER}/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{OWNER}/{REPO}/releases"
@@ -259,7 +262,7 @@ def download(release: Release, destination: Path,
             with open(partial, "wb") as handle:
                 for chunk in response.iter_content(CHUNK_BYTES):
                     if cancelled is not None and cancelled():
-                        raise UpdateError("cancelled")
+                        raise UpdateError(tr("update.cancelled"))
                     if not chunk:
                         continue
                     handle.write(chunk)
@@ -282,12 +285,12 @@ def download(release: Release, destination: Path,
     try:
         size = partial.stat().st_size
         if release.size and size != release.size:
-            raise UpdateError(f"expected {release.size} bytes, got {size}")
+            raise UpdateError(tr("update.bad_size", expected=release.size, actual=size))
         if size < MIN_PLAUSIBLE_BYTES:
-            raise UpdateError(f"only {size} bytes, not an executable")
+            raise UpdateError(tr("update.too_small", size=size))
         with open(partial, "rb") as handle:
             if handle.read(2) != b"MZ":
-                raise UpdateError("the downloaded file is not a Windows program")
+                raise UpdateError(tr("update.not_executable"))
         # Only now does it take the name the install step looks for, so a failed
         # or interrupted download can never be mistaken for a finished one.
         partial.replace(destination)
@@ -312,7 +315,7 @@ def install(staged: Path, target: Path) -> Path:
     is on disk and verified, and if the second rename fails the first is undone.
     """
     if not staged.exists():
-        raise UpdateError(f"{staged.name} is missing")
+        raise UpdateError(tr("update.missing_file", name=staged.name))
 
     backup = backup_path(target)
     try:
@@ -328,12 +331,12 @@ def install(staged: Path, target: Path) -> Path:
                 backup = candidate
                 break
         else:
-            raise UpdateError("too many leftover copies of the previous version")
+            raise UpdateError(tr("update.too_many_backups"))
 
     try:
         target.rename(backup)
     except OSError as exc:
-        raise UpdateError(f"could not move the current version aside ({exc})") from exc
+        raise UpdateError(tr("update.move_failed", error=exc)) from exc
 
     try:
         staged.rename(target)
@@ -344,10 +347,9 @@ def install(staged: Path, target: Path) -> Path:
         except OSError:
             # Both renames failed, which leaves the old executable under the
             # backup name. Said plainly, because the fix is one rename by hand.
-            raise UpdateError(
-                f"the update failed and the old version is now named "
-                f"{backup.name}; rename it back to {target.name}") from exc
-        raise UpdateError(f"could not put the new version in place ({exc})") from exc
+            raise UpdateError(tr("update.restore_manually", backup=backup.name,
+                                 target=target.name)) from exc
+        raise UpdateError(tr("update.replace_failed", error=exc)) from exc
 
     log.info("installed %s, previous version kept as %s", target, backup.name)
     return backup

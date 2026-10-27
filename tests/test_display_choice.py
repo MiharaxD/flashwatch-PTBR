@@ -126,14 +126,16 @@ for width, height, count in ((420, 104, 4), (420, 104, 10), (200, 104, 6),
     clash = overlapping(rects)
     check(f"cards do not overlap at {width}x{height} with {count}",
           clash is None, str(clash))
-    inside = all(0 <= r.left() and r.right() <= width
-                 and 0 <= r.top() and r.bottom() <= height for r in rects)
+    # A saved short rectangle grows to fit the champion's three rows.
+    inside = all(overlay.rect().contains(r) for r in rects)
     check(f"cards stay inside the window at {width}x{height}", inside,
           str([r.getRect() for r in rects][:3]))
     check(f"cards are dropped rather than squeezed at {width}x{height}",
           len(rects) <= count, f"{len(rects)} cards for {count} cooldowns")
 
-overlay.resize(QSize(420, 104))
+# The larger default countdown reserves wider slots. Give four cards enough
+# actual room; the smaller viewports above still verify safe overflow behavior.
+overlay.resize(QSize(760, 180))
 overlay.set_timers(timers(4))
 check("a card is drawn for every cooldown that fits",
       len(overlay._card_rects()) == 4, str(len(overlay._card_rects())))
@@ -196,7 +198,7 @@ overlay.sync_layout()
 # Kept inside a small screen on purpose: an off-screen rectangle is pulled back
 # by the on-screen guard, which would make this a test of that instead.
 placements = {LAYOUT_BAR: (300, 4, 700, 80),
-              LAYOUT_CARDS: (120, 300, 480, 110),
+              LAYOUT_CARDS: (120, 300, 480, 180),
               LAYOUT_LIST: (20, 120, 260, 420)}
 for layout, (x, y, width, height) in placements.items():
     settings.set("overlay_layout", layout)

@@ -189,8 +189,7 @@ for height in (46, 52, 58, 70, 78):
         overlay.render(overlay.grab())      # a real paint applies the minimum
         overlay.snap_motion()
         for marker in overlay._bar_markers(scale):
-            bottom = (marker.text.bottom() if marker.text.height() >= 8
-                      else marker.rect.bottom())
+            bottom = max(marker.text.bottom(), marker.rect.bottom())
             if bottom > overlay.height() or marker.rect.top() < 0:
                 fit.append((height, scale, round(bottom, 1), overlay.height()))
 check("the countdown never leaves the panel, at any height or scale",
@@ -256,6 +255,35 @@ check("an uncertain marker paints without its icons", True)
 check("and its countdown carries no question mark",
       not overlay._timers[-1].display().startswith("?"),
       overlay._timers[-1].display())
+
+# A valid small font must still draw its numbers. The shipped default is 0.5x;
+# some faces measure seven pixels at that size, which used to be rejected by a
+# hardcoded eight-pixel paint guard even though the full font fitted the panel.
+from PySide6.QtGui import QPixmap                       # noqa: E402
+from overlay import available_countdown_faces           # noqa: E402
+
+original_countdown = overlay._paint_countdown
+painted_numbers = []
+
+
+def record_countdown(*args, **kwargs):
+    painted_numbers.append(args[3])
+    return original_countdown(*args, **kwargs)
+
+
+overlay._paint_countdown = record_countdown
+settings.set("timer_font_scale", 0.5, save=False)
+for face in ["auto"] + [name for name, _, _ in available_countdown_faces()]:
+    settings.set("timer_font", face, save=False)
+    overlay.sync_countdown_style()
+    painted_numbers.clear()
+    overlay.render(QPixmap(overlay.size()))
+    check(f"small {face} countdowns actually paint for every timer",
+          len(painted_numbers) == len(overlay._timers)
+          and all(":" in value for value in painted_numbers),
+          f"font height={overlay._bar_metrics(1.0, vertical=False)['text']}px, "
+          f"numbers={painted_numbers}")
+overlay._paint_countdown = original_countdown
 
 print(f"\n{sum(results)}/{len(results)} checks passed")
 sys.exit(0 if all(results) else 1)

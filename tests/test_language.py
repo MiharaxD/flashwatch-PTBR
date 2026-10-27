@@ -25,7 +25,7 @@ tmp.mkdir(parents=True, exist_ok=True)
 settings_module.CONFIG_PATH = tmp / "settings.json"
 
 import i18n
-from i18n import ENGLISH, FRENCH, STRINGS, language_for, locale_for, tr
+from i18n import ENGLISH, FRENCH, LANGUAGES, STRINGS, language_for, locale_for, tr
 from settings import DEFAULTS, Settings
 
 results = []
@@ -39,13 +39,13 @@ def check(name, cond, extra=""):
 PLACEHOLDER = re.compile(r"\{(\w+)")
 
 # ------------------------------------------------------------- the catalogue
-empty = [key for key, (fr, en) in STRINGS.items() if not fr.strip() or not en.strip()]
-check("every string exists in both languages", not empty, str(empty[:5]))
+empty = [key for key, values in STRINGS.items()
+         if len(values) != len(LANGUAGES) or any(not v.strip() for v in values)]
+check("every string exists in all languages", not empty, str(empty[:5]))
 
-mismatched = {key: (sorted(set(PLACEHOLDER.findall(fr))),
-                    sorted(set(PLACEHOLDER.findall(en))))
-              for key, (fr, en) in STRINGS.items()
-              if set(PLACEHOLDER.findall(fr)) != set(PLACEHOLDER.findall(en))}
+mismatched = {key: values for key, values in STRINGS.items()
+              if any(set(PLACEHOLDER.findall(value)) !=
+                     set(PLACEHOLDER.findall(values[0])) for value in values[1:])}
 check("placeholders match across languages", not mismatched, str(mismatched))
 
 # Anything still identical in both languages should be deliberate (a product
@@ -72,8 +72,13 @@ SAME_ON_PURPOSE = {"app.title", "app.tray_tooltip",
                    # a picker that offered "French" to a French speaker would be
                    # asking the one person who cannot answer it.
                    "guide.language_fr_name", "guide.language_en_name",
-                   "guide.language_en_sub"}
-identical = {key for key, (fr, en) in STRINGS.items() if fr == en}
+                   "guide.language_en_sub", "ui.language_pt",
+                   "guide.language_pt_name", "guide.language_pt_sub",
+                   "overlay.ready", "role.top", "role.jungle", "role.mid",
+                   "role.adc", "role.support"}
+# Keep the original FR/EN audit; PT completeness and placeholders are checked
+# across every column above, and the Brazilian suite audits its intentional names.
+identical = {key for key, values in STRINGS.items() if values[0] == values[1]}
 check("nothing is left untranslated by accident",
       identical <= SAME_ON_PURPOSE, str(sorted(identical - SAME_ON_PURPOSE)))
 check("the deliberate list has no stale entries",
@@ -105,7 +110,8 @@ from zone_overlay import ZONE_LOADING, ZONE_SCOREBOARD, ZONES  # noqa: E402
 # lists the guide builds them from.
 built = (set(STEP_NAV.values())
          | {f"guide.language_{code}_{part}"
-            for code in ("fr", "en") for part in ("name", "sub")}
+            for code in LANGUAGES for part in ("name", "sub")}
+         | {f"role.{role.lower()}" for role in ("TOP", "JUNGLE", "MID", "ADC", "SUPPORT")}
          | {f"zone.name_{zone}" for zone in ZONES}
          # The two team areas share one readout, which picks its own hint.
          | {f"zone.{zone}_hint" for zone in (ZONE_SCOREBOARD, ZONE_LOADING)}

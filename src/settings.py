@@ -79,9 +79,9 @@ DEFAULTS: dict[str, Any] = {
     #
     # "bar"   : horizontal track at the top centre; each spell rides left to
     #           right as its cooldown runs down, so position *is* progress.
-    # "cards" : one fixed card per cooldown -- portrait, progress ring, spell
-    #           badge, countdown. Nothing moves, which is what makes it readable
-    #           mid-fight.
+    # "cards" : portrait above R / Flash / other spell; times below their icons.
+    #           Normal icon means ready (also assumed without an observed CD);
+    #           cooldown adds a translucent grey mask and X over the icon.
     # "list"  : compact rows, one per spell, each with a progress gauge.
     "overlay_layout": "bar",
     # Geometry per layout: {"bar": [x, y, w, h], ...}. Kept apart because the
@@ -125,11 +125,10 @@ DEFAULTS: dict[str, Any] = {
     # the countdown is a readout.
     "timer_font": "auto",
     # Size of that readout, as a multiple of the size everything else is drawn
-    # from. Half by default: the countdown was sized to be readable from across
-    # the room, which in practice makes the overlay much larger than the
-    # information in it warrants, and every layout measures its rows through this
-    # so a smaller number shrinks the block rather than leaving a hole in it.
-    "timer_font_scale": 0.5,
+    # from. 1.5x by default so the time can be read during a fight at 1080p and
+    # 1440p. Every layout measures through the chosen font, so it reserves the
+    # actual room required. Saved user preferences remain unchanged.
+    "timer_font_scale": 1.5,
     "sort_by_role": True,
     "hide_ready_entries": False,
     # How long a spell keeps showing READY once it is back up, before its entry
@@ -185,8 +184,8 @@ DEFAULTS: dict[str, Any] = {
     # --- Riot data ------------------------------------------------------
     # Locale of the League client, chosen in the settings window. Drives three
     # things at once: the localised strings matched in chat, the champion and
-    # spell names downloaded, and the language of the interface. "fr_FR" or
-    # "en_US"; anything else falls back to English for the interface.
+    # spell names downloaded, and the language of the interface. "fr_FR",
+    # "en_US" or "pt_BR"; unknown locales use English for the interface.
     #
     # English until the guide asks, because the question itself has to be
     # written in some language and that is the one most players read.

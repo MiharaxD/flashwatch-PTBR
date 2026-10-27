@@ -49,6 +49,7 @@ from chat_detector import ChatRegion
 from game_detector import GameDetector
 from message_parser import (MessageParser, SpellEvent, looks_like_chat_line,
                             parse_clock)
+from i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -292,7 +293,7 @@ class PipelineStatus:
     difference between diagnosing a detection problem and guessing at it.
     """
 
-    game: str = "League of Legends non detecte"
+    game: str = field(default_factory=lambda: tr("game.absent"))
     in_game: bool = False
     # The client is up but no game is on screen. Reported as its own flag rather
     # than left to be read back out of ``game``: the control window turns this

@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import sys
 import time
+import argparse
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -42,6 +44,8 @@ import game_detector
 from ocr import OcrEngine
 from message_parser import MessageParser, TIMESTAMP_RE
 from riot_assets import RiotAssets
+from settings import Settings
+from i18n import LOCALES, set_language
 
 # Generous lower-left area: everything chat could possibly occupy.
 ZONE = {"left": 0.0, "right": 0.62, "top": 0.34, "bottom": 0.97}
@@ -62,6 +66,16 @@ def zone_rect(window_rect):
 
 
 def main() -> int:
+    cli = argparse.ArgumentParser(description=__doc__)
+    cli.add_argument("--locale", choices=tuple(LOCALES.values()),
+                     help="Client locale; defaults to the saved setting")
+    cli.add_argument("--seconds", type=float,
+                     help="Stop after this many seconds (otherwise Ctrl+C)")
+    args = cli.parse_args()
+    if args.seconds is not None and args.seconds <= 0:
+        cli.error("--seconds must be positive")
+    locale = args.locale or str(Settings().get("locale", "en_US"))
+    set_language(locale)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     out = ROOT / "assets" / "diagnostics" / stamp
     (out / "frames").mkdir(parents=True, exist_ok=True)
@@ -76,8 +90,14 @@ def main() -> int:
     say(f"Sortie : {out}")
     say("Chargement des donnees Riot et du moteur OCR...")
 
-    assets = RiotAssets("fr_FR")
+    assets = RiotAssets(locale)
     assets.bootstrap()
+    (out / "metadata.json").write_text(json.dumps({
+        "locale": locale, "patch": assets.version,
+        "recorded_at": datetime.now().astimezone().isoformat(),
+        "source": "screen_capture", "validated_transcription": False,
+        "note": "OCR output is not a verified transcription of the client.",
+    }, ensure_ascii=False, indent=2), "utf-8")
     parser = MessageParser(assets)
     engine = OcrEngine()
     engine.load()
@@ -94,9 +114,13 @@ def main() -> int:
     last_full = 0.0
     last_state = None
     in_game_since = None
+    started = time.monotonic()
+    samples = (out / "samples.jsonl").open("w", encoding="utf-8")
 
     try:
         while True:
+            if args.seconds is not None and time.monotonic() - started >= args.seconds:
+                break
             loop_started = time.monotonic()
             state, changed = detector.poll()
 
@@ -146,6 +170,18 @@ def main() -> int:
                     if TIMESTAMP_RE.search(line):
                         marks.append("HORODATAGE")
                     event = parser.parse_line(line)
+                    samples.write(json.dumps({
+                        "locale": locale, "patch": assets.version,
+                        "image": f"frames/zone_{frame_index:03d}.png",
+                        "window_rect": state.window_rect, "crop_rect": monitor,
+                        "ocr_line": line, "human_transcription": None,
+                        "parsed": None if event is None else {
+                            "champion_id": event.champion_id, "spell": event.spell_key,
+                            "remaining_seconds": event.remaining_seconds,
+                            "certain": event.certain,
+                        },
+                    }, ensure_ascii=False) + "\n")
+                    samples.flush()
                     if event is not None:
                         marks.append(f"INTERPRETE={event.champion_id}/"
                                      f"{event.spell_key}")
@@ -161,6 +197,7 @@ def main() -> int:
         say(f"Captures : {out / 'frames'}")
         say(f"Journal  : {log_path}")
         log.close()
+        samples.close()
         sct.close()
     return 0
 

@@ -36,6 +36,7 @@ import numpy as np
 import chat_detector
 from chat_detector import ChatRegion
 from message_parser import MessageParser, SpellEvent, looks_like_chat_line
+from i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -154,7 +155,7 @@ def run(engine, assets, directory: Path | None = None) -> SelfTestResult:
         return result
 
     if frame is None or frame.size == 0:
-        result.error = f"{directory / IMAGE_NAME}: unreadable image"
+        result.error = tr("test.unreadable_image", path=directory / IMAGE_NAME)
         result.elapsed_ms = (time.perf_counter() - started) * 1000.0
         return result
 

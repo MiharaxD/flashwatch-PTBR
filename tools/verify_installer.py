@@ -90,6 +90,8 @@ def main():
     checks["start_menu_shortcut"] = shortcuts["StartMenu"] == "[INSTALLDIR]FlashWatch-PTBR.exe"
     checks["uninstall_shortcut"] = shortcuts["Uninstall"] == "[SystemFolder]msiexec.exe"
     checks["desktop_shortcut"] = shortcuts["Desktop"] == "[INSTALLDIR]FlashWatch-PTBR.exe"
+    icons = dict((name, icon) for name, icon in rows("Shortcut", ["Shortcut", "Icon_"]))
+    checks["shortcuts_follow_exe_icon"] = not icons["StartMenu"] and not icons["Desktop"]
     components = dict(rows("Component", ["Component", "Condition"]))
     checks["desktop_is_optional"] = components["DesktopShortcut"] == 'DESKTOP_SHORTCUT="1"'
     directories = dict(rows("Directory", ["Directory", "Directory_Parent"]))

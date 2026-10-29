@@ -171,13 +171,18 @@ def build(version: str, output: Path) -> Path:
         add("Component", [(component, guid("component:" + component), directory, 260, condition, component + "Reg")])
         add("FeatureComponents", [("Application", component)])
         add("Registry", [(component + "Reg", 1, REG_KEY, component, "[INSTALLDIR]", component)])
+    # AppIcon serves only the Installed apps list. The shortcuts carry no Icon:
+    # an Icon-table entry is copied once at install time and never refreshed, so
+    # after the updater swapped the .exe the Start Menu -- and the taskbar, which
+    # borrows the shortcut's icon -- kept showing the logo of the installed MSI.
+    # Without one, Windows reads the icon from the executable it points at.
     add("Icon", [("AppIcon", msilib.Binary(str(ROOT / "resources/brand/flashwatch.ico")))])
     add("Shortcut", [("StartMenu", "MenuFolder", "FLASHW~1|FlashWatch PT-BR", "ApplicationFiles",
-                      "[INSTALLDIR]FlashWatch-PTBR.exe", None, "FlashWatch em Português Brasileiro", None, "AppIcon", 0, 1, "INSTALLDIR"),
+                      "[INSTALLDIR]FlashWatch-PTBR.exe", None, "FlashWatch em Português Brasileiro", None, None, None, 1, "INSTALLDIR"),
                      ("Uninstall", "MenuFolder", "DESINS~1|Desinstalar FlashWatch PT-BR", "ApplicationFiles",
                       "[SystemFolder]msiexec.exe", "/x [ProductCode]", "Remover o programa", None, None, None, 1, None),
                      ("Desktop", "DesktopFolder", "FLASHW~1|FlashWatch PT-BR", "DesktopShortcut",
-                      "[INSTALLDIR]FlashWatch-PTBR.exe", None, None, None, "AppIcon", 0, 1, "INSTALLDIR")])
+                      "[INSTALLDIR]FlashWatch-PTBR.exe", None, None, None, None, None, 1, "INSTALLDIR")])
     add("RemoveFile", [("RemoveMenuFolder", "ApplicationFiles", None, "MenuFolder", 2),
                         ("RemoveDocsFolder", "Documentation", None, "DOCSDIR", 2),
                         ("RemoveEmptyAppFolder", "ApplicationFiles", None, "INSTALLDIR", 2)])

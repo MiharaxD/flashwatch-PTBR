@@ -23,6 +23,8 @@ Os arquivos instalados e os atalhos são removidos. As configurações e o cache
 
 Este é um empacotamento local, não uma release oficial do projeto original. A versão **1.0.4 do MSI** identifica o instalador; o aplicativo também identifica esta build como 1.0.4 para comparar atualizações. O MSI mantém a identidade de atualização desta edição, com uma nova identidade de produto para a revisão.
 
+Os atalhos do menu Iniciar e da área de trabalho usam o ícone do próprio `FlashWatch-PTBR.exe`. Assim, quando o atualizador troca o executável, o atalho e a barra de tarefas acompanham o novo ícone. Antes, o MSI gravava uma cópia fixa do ícone e o atalho mantinha o logo da versão instalada. Só a lista de **Aplicativos instalados** do Windows continua usando o ícone gravado pelo MSI.
+
 A licença MIT integral, os avisos da modificação e a licença da fonte Mulish acompanham a instalação. O pacote local não tem assinatura Authenticode nem certificado de editor verificado.
 
 ## Reprodução e validação
